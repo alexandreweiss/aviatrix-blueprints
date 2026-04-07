@@ -1,0 +1,93 @@
+# -----------------------------------------------------------------------------
+# Pattern C: EKS Non-Production Cluster
+# Dedicated non-production cluster in isolated VPC
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    aviatrix = {
+      source  = "AviatrixSystems/aviatrix"
+      version = "~> 8.2"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+provider "aviatrix" {
+  skip_version_validation = true
+}
+
+locals {
+  cluster_name = "${var.environment_prefix}-nonprod"
+}
+
+module "eks_nonprod" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~> 20.0"
+
+  cluster_name    = local.cluster_name
+  cluster_version = var.cluster_version
+
+  vpc_id     = data.terraform_remote_state.network.outputs.nonprod_vpc_id
+  subnet_ids = data.terraform_remote_state.network.outputs.nonprod_private_subnets
+
+  cluster_endpoint_public_access  = true
+  cluster_endpoint_private_access = true
+
+  cluster_addons = {
+    vpc-cni = {
+      most_recent = true
+      configuration_values = jsonencode({
+        env = {
+          AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG = "true"
+          AWS_VPC_K8S_CNI_EXTERNALSNAT       = "true"
+          ENI_CONFIG_LABEL_DEF               = "topology.kubernetes.io/zone"
+        }
+      })
+    }
+    kube-proxy = {
+      most_recent = true
+    }
+  }
+
+  eks_managed_node_groups = {
+    nonprod_workers = {
+      name           = "${var.environment_prefix}-nonprod-workers"
+      instance_types = ["t3.large"]
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 2
+
+      labels = {
+        environment = "non-production"
+        cluster     = "nonprod"
+      }
+    }
+  }
+
+  enable_cluster_creator_admin_permissions = true
+
+  tags = {
+    Environment = "non-production"
+    Pattern     = "C"
+    ManagedBy   = "terraform"
+  }
+}
+
+#####################
+# Aviatrix Kubernetes Cluster Onboarding
+#####################
+
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = module.eks_nonprod.cluster_arn
+  use_csp_credentials = true
+}
