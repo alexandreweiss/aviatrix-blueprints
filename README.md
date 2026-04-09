@@ -50,6 +50,7 @@ Blueprints are **complete, deployable lab environments** that demonstrate Aviatr
 | Blueprint | Description | Cloud(s) | Tier | Status |
 |-----------|-------------|----------|------|--------|
 | [aws-eks-multicluster](blueprints/aws-eks-multicluster/) | Distributed Cloud Firewall with EKS | AWS | Community | 🚧 In Progress |
+| [prevent-lateral-movement-vm-tags](blueprints/prevent-lateral-movement-vm-tags/) | Zero Trust segmentation with DCF and VM tags to prevent lateral movement | AWS | Community | 🔄 In Review |
 
 ## Manual Deployment
 

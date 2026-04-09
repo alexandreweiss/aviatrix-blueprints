@@ -1,0 +1,53 @@
+#!/bin/bash
+set -e
+
+yum update -y
+amazon-linux-extras install -y docker
+systemctl start docker
+systemctl enable docker
+
+mkdir -p /etc/gatus
+
+# Write Gatus config with actual test VM IPs substituted by Terraform templatefile().
+# Endpoints reflect the DCF policies enforced by Aviatrix:
+#   - Prod → DB:      PERMIT (policy: allow-prod-to-db)
+#   - Prod → Dev:     DENY   (policy: deny-prod-to-dev)
+#   - Prod → Dev TCP: DENY   (no permit rule; caught by default-deny-all)
+#
+# Note: this instance must be in the Prod SmartGroup (Environment = "production")
+# for the ALLOW result to appear green. See the DCF classification note in gatus.tf.
+cat > /etc/gatus/config.yaml <<GATUS_CONFIG
+storage:
+  type: memory
+metrics: false
+ui:
+  title: "Prevent Lateral Movement - Live Policy Dashboard"
+  header: "Aviatrix DCF | Real-time segmentation enforcement"
+endpoints:
+  - name: "Prod to DB (ALLOWED — legitimate business traffic)"
+    group: "Should Be GREEN"
+    url: "icmp://${db_ip}"
+    interval: 10s
+    conditions:
+      - "[CONNECTED] == true"
+  - name: "Prod to Dev ICMP (BLOCKED — no lateral movement)"
+    group: "Should Be RED"
+    url: "icmp://${dev_ip}"
+    interval: 10s
+    conditions:
+      - "[CONNECTED] == true"
+  - name: "Prod to Dev TCP (BLOCKED — default deny)"
+    group: "Should Be RED"
+    url: "tcp://${dev_ip}:22"
+    interval: 10s
+    conditions:
+      - "[CONNECTED] == true"
+GATUS_CONFIG
+
+# --network host required so ICMP probes run on the EC2 instance's network stack
+docker run -d \
+  --name gatus \
+  --restart always \
+  --network host \
+  -v /etc/gatus:/config:ro \
+  twinproduction/gatus:latest
