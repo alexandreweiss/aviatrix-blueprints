@@ -27,6 +27,16 @@ Layer 2: Clusters   →  EKS/AKS/GKE control planes, IRSA/Workload Identity
 Layer 3: Nodes      →  Node groups, Helm charts (k8s-firewall, ALB/Ingress, ExternalDNS)
 Layer 4: CRDs       →  Namespaces, FirewallPolicy, WebGroupPolicy manifests
 ```
+| Blueprint | Description | Cloud(s) | Tier | Status |
+|-----------|-------------|----------|------|--------|
+| [aws-eks-multicluster](blueprints/aws-eks-multicluster/) | Distributed Cloud Firewall with EKS | AWS | Community | 🚧 In Progress |
+| [prevent-lateral-movement-vm-tags](blueprints/prevent-lateral-movement-vm-tags/) | Zero Trust segmentation with DCF and VM tags to prevent lateral movement | AWS | Community | 🔄 In Review |
+
+## Manual Deployment
+
+### 1. Prerequisites
+
+Before deploying any blueprint, ensure you have:
 
 Layers must be deployed in order. Destruction is reverse order.
 
