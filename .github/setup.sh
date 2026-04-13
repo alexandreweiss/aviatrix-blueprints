@@ -163,7 +163,7 @@ if [ -f terraform.tfstate ]; then
   EXISTING_BUCKET=$(terraform output -raw bucket_name 2>/dev/null || echo "")
   if [ -n "$EXISTING_BUCKET" ]; then
     # Verify bucket actually exists
-    if aws s3api head-bucket --bucket "$EXISTING_BUCKET" 2>/dev/null; then
+    if aws s3api head-bucket --bucket "$EXISTING_BUCKET" &>/dev/null; then
       ok "S3 bucket already exists: ${EXISTING_BUCKET}"
       TF_STATE_BUCKET="$EXISTING_BUCKET"
     fi
@@ -239,7 +239,7 @@ create_environment() {
   gh api "repos/${REPO}/environments/${env_name}" \
     --method PUT \
     --input /dev/null \
-    2>/dev/null && ok "Environment: ${env_name}" \
+    &>/dev/null && ok "Environment: ${env_name}" \
     || warn "Could not create environment '${env_name}' — create it manually in Settings > Environments"
 }
 

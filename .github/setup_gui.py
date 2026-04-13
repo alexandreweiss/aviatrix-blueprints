@@ -157,6 +157,43 @@ HTML_PAGE = r"""<!DOCTYPE html>
     background: var(--surface); padding: 0.1rem 0.3rem; border-radius: 3px;
   }
 
+  /* Select inputs */
+  .field select {
+    width: 100%; padding: 0.55rem 0.75rem; font-size: 0.85rem;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); outline: none;
+    transition: border-color 0.15s; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2371717a' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.75rem center;
+  }
+  .field select:focus { border-color: var(--accent); }
+  .field select option { background: var(--surface); color: var(--text); }
+
+  /* Local-only card (hidden in remote mode) */
+  .local-only { display: block; }
+  .local-only.hidden { display: none; }
+
+  /* Advanced toggle */
+  .advanced-toggle {
+    font-size: 0.82rem; color: var(--muted); cursor: pointer;
+    padding: 0.5rem 0; user-select: none; margin-top: 0.5rem;
+    transition: color 0.15s;
+  }
+  .advanced-toggle:hover { color: var(--accent); }
+  .advanced-toggle span { display: inline-block; transition: transform 0.15s; margin-right: 0.4rem; font-size: 0.65rem; }
+  .advanced-section {
+    display: none; margin-top: 0.5rem; padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .advanced-section.visible { display: block; }
+  .adv-group { margin-bottom: 0.75rem; }
+  .adv-group h3 {
+    font-size: 0.78rem; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+  }
+
   /* Button */
   .btn {
     width: 100%; padding: 0.7rem; font-size: 0.9rem; font-weight: 600;
@@ -257,13 +294,14 @@ HTML_PAGE = r"""<!DOCTYPE html>
             <input name="aws_region" value="us-east-2">
           </div>
           <div class="field">
-            <label>IAM Role ARN (OIDC)</label>
-            <input name="aws_role_arn" placeholder="arn:aws:iam::...:role/...">
+            <label>Aviatrix-onboarded AWS Account Name</label>
+            <input name="avx_aws_account" value="lab-test-aws">
           </div>
         </div>
-        <div class="field">
-          <label>Aviatrix-onboarded AWS Account Name</label>
-          <input name="avx_aws_account" value="lab-test-aws">
+        <div class="field cicd-only" id="awsRoleField" style="display:none;">
+          <label>IAM Role ARN (OIDC)</label>
+          <input name="aws_role_arn" placeholder="arn:aws:iam::...:role/...">
+          <div class="hint">Required for GitHub Actions. Not needed for local runs.</div>
         </div>
       </div>
 
@@ -320,26 +358,76 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
     <div class="card">
       <h2><span class="step">3</span> Terraform Bootstrap</h2>
-      <p style="font-size:0.8rem; color:var(--muted); margin-bottom:0.75rem;">The S3 state bucket can be created locally or via a GitHub Actions workflow.</p>
+      <p style="font-size:0.8rem; color:var(--muted); margin-bottom:0.75rem;">Choose how you will run Terraform deployments.</p>
       <div class="radio-group">
         <label class="radio-option selected" id="optLocal">
           <input type="radio" name="bootstrap_mode" value="local" checked onchange="setBootstrapMode('local')">
           <div class="radio-content">
-            <strong>Run locally</strong>
-            <span>Runs <code>terraform apply</code> on this machine now</span>
+            <strong>Local Terraform</strong>
+            <span>Run <code>terraform apply</code> from your machine. Uses local state files.</span>
           </div>
         </label>
         <label class="radio-option" id="optRemote">
           <input type="radio" name="bootstrap_mode" value="remote" onchange="setBootstrapMode('remote')">
           <div class="radio-content">
-            <strong>GitHub Actions</strong>
-            <span>Skips bootstrap — you trigger it from the Actions tab</span>
+            <strong>GitHub Actions CI/CD</strong>
+            <span>Creates S3 state bucket, GitHub secrets, environments, and OIDC setup.</span>
           </div>
         </label>
       </div>
     </div>
 
-    <button type="submit" class="btn" id="runBtn">Run Setup</button>
+    <div class="card local-only" id="deployCard">
+      <h2><span class="step">4</span> Deploy</h2>
+      <p style="font-size:0.8rem; color:var(--muted); margin-bottom:0.75rem;">Select what to deploy. Layers run in order; clusters and nodes parallelize across targets.</p>
+      <div class="row">
+        <div class="field">
+          <label>Pattern</label>
+          <select name="deploy_pattern" id="deployPattern" onchange="onPatternChange()">
+            <option value="prod-nonprod-hybrid" selected>Prod/Non-Prod Hybrid</option>
+            <option value="cluster-aas">Cluster-as-a-Service</option>
+            <option value="namespace-aas">Namespace-as-a-Service</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>CSP</label>
+          <select name="deploy_csp" id="deployCsp">
+            <option value="aws" selected>AWS</option>
+            <option value="azure">Azure</option>
+            <option value="gcp">GCP</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Action</label>
+          <select name="deploy_action">
+            <option value="plan" selected>Plan</option>
+            <option value="apply">Apply</option>
+            <option value="destroy">Destroy</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Layer</label>
+          <select name="deploy_layer">
+            <option value="all" selected>All</option>
+            <option value="network">Network</option>
+            <option value="clusters">Clusters</option>
+            <option value="nodes">Nodes</option>
+            <option value="crds">CRDs</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="advanced-toggle" onclick="toggleAdvanced()">
+        <span id="advArrow">&#9654;</span> Advanced
+      </div>
+      <div class="advanced-section" id="advancedSection">
+        <div id="advancedFields"></div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn" id="runBtn">Deploy</button>
   </form>
 
   <div class="log-wrap" id="logWrap">
@@ -356,11 +444,132 @@ function toggleCloud(name) {
   const section = document.getElementById(name + 'Section');
   const toggle = document.getElementById(name + 'Toggle');
   section.classList.toggle('visible', toggle.checked);
+  syncCspDropdown();
+}
+
+function syncCspDropdown() {
+  const sel = document.getElementById('deployCsp');
+  const enabled = [];
+  ['aws','azure','gcp'].forEach(c => {
+    const opt = sel.querySelector('option[value="'+c+'"]');
+    const on = document.getElementById(c+'Toggle').checked;
+    opt.disabled = !on;
+    if (on) enabled.push(c);
+  });
+  if (enabled.length && !enabled.includes(sel.value)) {
+    sel.value = enabled[0];
+  }
 }
 
 function setBootstrapMode(mode) {
   document.getElementById('optLocal').classList.toggle('selected', mode === 'local');
   document.getElementById('optRemote').classList.toggle('selected', mode === 'remote');
+  document.getElementById('awsRoleField').style.display = mode === 'remote' ? 'block' : 'none';
+  document.getElementById('deployCard').classList.toggle('hidden', mode === 'remote');
+  document.getElementById('runBtn').textContent = mode === 'local' ? 'Deploy' : 'Run Setup';
+}
+
+syncCspDropdown();
+onPatternChange();
+
+// ── Advanced variables per pattern ──
+const PATTERN_VARS = {
+  "prod-nonprod-hybrid": {
+    "Network": [
+      {k:"environment_prefix", v:"pc2", d:"Resource name prefix"},
+      {k:"transit_cidr", v:"10.2.0.0/20", d:"Transit VPC CIDR"},
+      {k:"prod_vpc_cidr", v:"10.10.0.0/20", d:"Production VPC CIDR"},
+      {k:"nonprod_vpc_cidr", v:"10.20.0.0/20", d:"Non-production VPC CIDR"},
+      {k:"db_spoke_cidr", v:"10.5.0.0/22", d:"Database spoke CIDR"},
+      {k:"pod_cidr", v:"100.64.0.0/16", d:"Pod overlay CIDR"},
+      {k:"dns_domain", v:"internal.example.com", d:"Private DNS domain"},
+      {k:"transit_gw_size", v:"c5.xlarge", d:"Transit gateway size"},
+      {k:"spoke_gw_size", v:"c5.xlarge", d:"Spoke gateway size"},
+      {k:"enable_ha", v:"true", d:"HA for gateways", type:"bool"},
+    ],
+    "Clusters": [
+      {k:"cluster_version", v:"1.31", d:"EKS Kubernetes version"},
+      {k:"enable_private_endpoint", v:"false", d:"Private-only API server", type:"bool"},
+      {k:"enable_control_plane_logging", v:"false", d:"Control plane audit logs", type:"bool"},
+    ],
+  },
+  "cluster-aas": {
+    "Network": [
+      {k:"name_prefix", v:"caas", d:"Resource name prefix"},
+      {k:"transit_cidr", v:"10.2.0.0/20", d:"Transit VPC CIDR"},
+      {k:"team_a_vpc_cidr", v:"10.10.0.0/20", d:"Team A VPC CIDR"},
+      {k:"team_b_vpc_cidr", v:"10.11.0.0/20", d:"Team B VPC CIDR"},
+      {k:"team_c_vpc_cidr", v:"10.12.0.0/20", d:"Team C VPC CIDR"},
+      {k:"db_vpc_cidr", v:"10.5.0.0/22", d:"Database spoke CIDR"},
+      {k:"pod_cidr", v:"100.64.0.0/16", d:"Pod overlay CIDR"},
+      {k:"private_dns_zone_name", v:"aws.aviatrixdemo.local", d:"Route53 zone name"},
+    ],
+    "Clusters": [
+      {k:"kubernetes_version", v:"1.31", d:"EKS Kubernetes version"},
+      {k:"enable_private_endpoint", v:"false", d:"Private-only API server", type:"bool"},
+      {k:"enable_control_plane_logging", v:"false", d:"Control plane audit logs", type:"bool"},
+    ],
+    "Nodes": [
+      {k:"node_desired_size", v:"2", d:"Desired node count"},
+      {k:"node_max_size", v:"3", d:"Maximum nodes"},
+      {k:"node_instance_type", v:"t3.large", d:"Instance type"},
+    ],
+  },
+  "namespace-aas": {
+    "Network": [
+      {k:"name_prefix", v:"naas", d:"Resource name prefix"},
+      {k:"transit_cidr", v:"10.2.0.0/20", d:"Transit VPC CIDR"},
+      {k:"shared_vpc_cidr", v:"10.10.0.0/16", d:"Shared VPC CIDR"},
+      {k:"pod_cidr", v:"100.64.0.0/16", d:"Pod overlay CIDR"},
+      {k:"private_dns_zone_name", v:"aws-naas.aviatrixdemo.local", d:"Route53 zone name"},
+    ],
+    "Clusters": [
+      {k:"kubernetes_version", v:"1.31", d:"EKS Kubernetes version"},
+      {k:"enable_private_endpoint", v:"false", d:"Private-only API server", type:"bool"},
+      {k:"enable_control_plane_logging", v:"false", d:"Control plane audit logs", type:"bool"},
+    ],
+    "Nodes": [
+      {k:"node_desired_size", v:"3", d:"Desired node count"},
+      {k:"node_max_size", v:"6", d:"Maximum nodes"},
+      {k:"node_instance_type", v:"m5.xlarge", d:"Instance type"},
+    ],
+  },
+};
+
+function toggleAdvanced() {
+  const sec = document.getElementById('advancedSection');
+  const arrow = document.getElementById('advArrow');
+  const show = !sec.classList.contains('visible');
+  sec.classList.toggle('visible', show);
+  arrow.style.transform = show ? 'rotate(90deg)' : '';
+}
+
+function onPatternChange() {
+  const pattern = document.getElementById('deployPattern').value;
+  const vars = PATTERN_VARS[pattern] || {};
+  const container = document.getElementById('advancedFields');
+  container.innerHTML = '';
+
+  for (const [group, fields] of Object.entries(vars)) {
+    let html = '<div class="adv-group"><h3>' + group + '</h3>';
+    for (let i = 0; i < fields.length; i += 2) {
+      html += '<div class="row">';
+      for (let j = i; j < Math.min(i+2, fields.length); j++) {
+        const f = fields[j];
+        if (f.type === 'bool') {
+          html += '<div class="field"><label>' + f.d + '</label>' +
+            '<select name="tfvar_' + f.k + '"><option value="false"' + (f.v==='false'?' selected':'') + '>false</option>' +
+            '<option value="true"' + (f.v==='true'?' selected':'') + '>true</option></select></div>';
+        } else {
+          html += '<div class="field"><label>' + f.d + '</label>' +
+            '<input name="tfvar_' + f.k + '" value="' + f.v + '" placeholder="' + f.v + '"></div>';
+        }
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    container.innerHTML += html;
+  }
 }
 
 // Preflight check
@@ -433,7 +642,8 @@ document.getElementById('setupForm').addEventListener('submit', async (e) => {
   }
 
   btn.disabled = false;
-  btn.textContent = 'Run Setup Again';
+  const isLocal = document.querySelector('input[name="bootstrap_mode"]:checked').value === 'local';
+  btn.textContent = isLocal ? 'Deploy Again' : 'Run Setup Again';
 });
 
 function colorize(text) {
@@ -547,14 +757,15 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     def _handle_run(self, config):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Transfer-Encoding", "chunked")
         self._cors()
         self.end_headers()
+
+        mode = config.get("bootstrap_mode", "local")
 
         env = os.environ.copy()
         env.update({
             "GUI_MODE": "1",
-            "CFG_BOOTSTRAP_MODE": config.get("bootstrap_mode", "local"),
+            "CFG_BOOTSTRAP_MODE": mode,
             "CFG_AVIATRIX_CONTROLLER": config.get("aviatrix_controller", ""),
             "CFG_AVIATRIX_USER": config.get("aviatrix_user", "admin"),
             "CFG_AVIATRIX_PASS": config.get("aviatrix_pass", ""),
@@ -572,7 +783,24 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             "CFG_AVX_GCP_ACCOUNT": config.get("avx_gcp_account", ""),
         })
 
-        wrapper = os.path.join(SCRIPT_DIR, "setup_headless.sh")
+        if mode == "local":
+            env.update({
+                "CFG_PATTERN": config.get("deploy_pattern", "prod-nonprod-hybrid"),
+                "CFG_CSP": config.get("deploy_csp", "aws"),
+                "CFG_ACTION": config.get("deploy_action", "plan"),
+                "CFG_LAYER": config.get("deploy_layer", "all"),
+            })
+            # Pass advanced variables as TF_VAR_*
+            for key, val in config.items():
+                if key.startswith("tfvar_") and val:
+                    tf_key = key[6:]  # strip "tfvar_" prefix
+                    env[f"TF_VAR_{tf_key}"] = val
+            wrapper = os.path.join(SCRIPT_DIR, "deploy_local.sh")
+        else:
+            wrapper = os.path.join(SCRIPT_DIR, "setup_headless.sh")
+
+        import re
+        ansi_re = re.compile(r"\033\[[0-9;]*m")
         try:
             proc = subprocess.Popen(
                 ["bash", wrapper],
@@ -580,31 +808,28 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                 env=env, cwd=SCRIPT_DIR,
             )
             for line in iter(proc.stdout.readline, b""):
-                chunk = line.decode("utf-8", errors="replace")
-                # Strip ANSI escape codes for the web log
-                import re
-                chunk = re.sub(r"\033\[[0-9;]*m", "", chunk)
-                self._send_chunk(chunk)
+                text = ansi_re.sub("", line.decode("utf-8", errors="replace"))
+                self.wfile.write(text.encode("utf-8"))
+                self.wfile.flush()
             proc.wait()
-            self._send_chunk(f"EXIT_CODE:{proc.returncode}\n")
-        except Exception as e:
-            self._send_chunk(f"✗ Error: {e}\n")
-            self._send_chunk("EXIT_CODE:1\n")
-
-        self._send_chunk("")  # final empty chunk
-
-    def _send_chunk(self, data):
-        encoded = data.encode("utf-8")
-        try:
-            self.wfile.write(f"{len(encoded):x}\r\n".encode())
-            self.wfile.write(encoded + b"\r\n")
+            self.wfile.write(f"EXIT_CODE:{proc.returncode}\n".encode("utf-8"))
             self.wfile.flush()
-        except BrokenPipeError:
+        except (BrokenPipeError, ConnectionResetError):
             pass
+        except Exception as e:
+            try:
+                self.wfile.write(f"✗ Error: {e}\nEXIT_CODE:1\n".encode("utf-8"))
+                self.wfile.flush()
+            except Exception:
+                pass
+
+
+class ReusableHTTPServer(http.server.HTTPServer):
+    allow_reuse_address = True
 
 
 def main():
-    server = http.server.HTTPServer(("127.0.0.1", PORT), RequestHandler)
+    server = ReusableHTTPServer(("127.0.0.1", PORT), RequestHandler)
     url = f"http://127.0.0.1:{PORT}"
     print(f"\n  Aviatrix Blueprints Setup GUI")
     print(f"  Listening on {url}")
