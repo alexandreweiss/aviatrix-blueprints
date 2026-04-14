@@ -28,7 +28,7 @@ provider "aviatrix" {
 }
 
 module "aks_prod" {
-  source = "../../../azure-aks-multicluster/modules/aks-cluster"
+  source = "../../../../azure-aks-multicluster/modules/aks-cluster"
 
   cluster_name        = "${var.environment_prefix}-prod"
   resource_group_name = var.resource_group_name

@@ -53,7 +53,7 @@ provider "kubernetes" {
 }
 
 module "team_b_aks" {
-  source = "../../../azure-aks-multicluster/modules/aks-cluster"
+  source = "../../../../azure-aks-multicluster/modules/aks-cluster"
 
   cluster_name        = data.terraform_remote_state.network.outputs.team_b_cluster_name
   resource_group_name = data.terraform_remote_state.network.outputs.team_b_resource_group_name

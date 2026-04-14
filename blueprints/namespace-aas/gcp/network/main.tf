@@ -77,7 +77,6 @@ module "gcp_transit" {
   connected_transit = true
 
   # Use VPC DNS server for gateway management — required for hostname SmartGroups
-  enable_vpc_dns_server = true
 
   # CRITICAL: Exclude non-routable pod CIDR from BGP advertisements
   # This allows spokes with the same secondary range (100.64.0.0/16)
@@ -123,7 +122,6 @@ module "shared_spoke" {
   ha_gw         = false
 
   # Use VPC DNS server for gateway management — required for hostname SmartGroups
-  enable_vpc_dns_server = true
 
   # Use existing VPC created by gke-vpc module
   use_existing_vpc = true
@@ -198,7 +196,7 @@ resource "google_dns_managed_zone" "private" {
     # Associate with transit VPC
     # DNS network_url needs GCP self-link, not Aviatrix format
     networks {
-      network_url = "projects/${var.gcp_project}/global/networks/${split("~~", module.gcp_transit.vpc.vpc_id)[0]}"
+      network_url = "projects/${var.gcp_project}/global/networks/${split("~-~", module.gcp_transit.vpc.vpc_id)[0]}"
     }
   }
 

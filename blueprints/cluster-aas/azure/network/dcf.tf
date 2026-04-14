@@ -19,6 +19,7 @@
 #####################
 
 resource "aviatrix_distributed_firewalling_config" "main" {
+  count                          = var.disable_dcf_on_destroy ? 1 : 0
   enable_distributed_firewalling = true
 }
 

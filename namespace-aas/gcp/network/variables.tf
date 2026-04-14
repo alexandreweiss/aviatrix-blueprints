@@ -109,3 +109,9 @@ variable "approved_web_domains" {
     "ghcr.io",
   ]
 }
+
+variable "disable_dcf_on_destroy" {
+  description = "Whether to disable DCF globally when this pattern is destroyed. Default false — DCF stays enabled."
+  type        = bool
+  default     = false
+}

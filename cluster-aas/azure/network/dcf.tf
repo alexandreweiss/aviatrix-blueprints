@@ -19,6 +19,7 @@
 #####################
 
 resource "aviatrix_distributed_firewalling_config" "main" {
+  count                          = var.disable_dcf_on_destroy ? 1 : 0
   enable_distributed_firewalling = true
 }
 
@@ -284,7 +285,7 @@ resource "aviatrix_dcf_ruleset" "caas" {
   #############################
 
   rules {
-    name             = "Team-A to Team-B API (HTTPS)"
+    name             = "Team-A to Team-B API - HTTPS"
     action           = "PERMIT"
     priority         = 10
     protocol         = "TCP"
@@ -297,7 +298,7 @@ resource "aviatrix_dcf_ruleset" "caas" {
   }
 
   rules {
-    name             = "Team-B to Team-A API (8080)"
+    name             = "Team-B to Team-A API - 8080"
     action           = "PERMIT"
     priority         = 11
     protocol         = "TCP"

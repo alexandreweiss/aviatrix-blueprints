@@ -96,13 +96,12 @@ module "gcp_transit" {
   cidr    = var.transit_cidr
   ha_gw   = false
 
-  enable_transit_firenet        = true
+  enable_transit_firenet        = false
   enable_egress_transit_firenet = false
 
   instance_size     = "n1-standard-4"
   connected_transit = true
 
-  enable_vpc_dns_server = true
 
   # CRITICAL: Exclude non-routable pod CIDR from BGP advertisements
   # This goes on the TRANSIT module, NOT on spokes.
@@ -141,7 +140,6 @@ module "team_a_spoke" {
   instance_size = "n1-standard-2"
   ha_gw         = false
 
-  enable_vpc_dns_server = true
 
   # GCP VPC format: "network_name~~project_id"
   use_existing_vpc = true
@@ -215,7 +213,6 @@ module "team_b_spoke" {
   instance_size = "n1-standard-2"
   ha_gw         = false
 
-  enable_vpc_dns_server = true
 
   use_existing_vpc = true
   vpc_id           = "${module.team_b_vpc.network_name}~~${var.gcp_project}"
@@ -287,7 +284,6 @@ module "team_c_spoke" {
   instance_size = "n1-standard-2"
   ha_gw         = false
 
-  enable_vpc_dns_server = true
 
   use_existing_vpc = true
   vpc_id           = "${module.team_c_vpc.network_name}~~${var.gcp_project}"
@@ -347,7 +343,6 @@ module "spoke_db" {
   ha_gw          = false
   single_ip_snat = true
 
-  enable_vpc_dns_server = true
 }
 
 #####################
@@ -368,7 +363,7 @@ resource "google_dns_managed_zone" "private" {
     # Associate with transit VPC
     # CRITICAL: Use GCP self-link format for transit VPC, not Aviatrix format
     networks {
-      network_url = "projects/${var.gcp_project}/global/networks/${split("~~", module.gcp_transit.vpc.vpc_id)[0]}"
+      network_url = "projects/${var.gcp_project}/global/networks/${split("~-~", module.gcp_transit.vpc.vpc_id)[0]}"
     }
 
     # Associate with team VPCs (these use module output which is already self-link format)

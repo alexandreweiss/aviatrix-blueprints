@@ -16,6 +16,7 @@
 #####################
 
 resource "aviatrix_distributed_firewalling_config" "main" {
+  count                          = var.disable_dcf_on_destroy ? 1 : 0
   enable_distributed_firewalling = true
 }
 
@@ -292,10 +293,12 @@ resource "aviatrix_web_group" "sandbox_relaxed_egress" {
 # DCF Policy — Two-Layer Ruleset
 # ===========================================================================
 
-resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
+resource "aviatrix_dcf_ruleset" "pattern_c" {
   depends_on = [time_sleep.wait_for_dcf]
+  name       = "${var.environment_prefix}-prod-nonprod-hybrid-gcp"
+  attach_to  = "defa11a1-3000-4001-0000-000000000000"
 
-  policies {
+  rules {
     # ----- Priority 0: Geo-blocking (IR, KP, RU) -----
     name     = "${var.environment_prefix}-geo-block"
     action   = "DENY"
@@ -305,11 +308,9 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.all_clusters.uuid]
     dst_smart_groups = [aviatrix_smart_group.geo_blocked.uuid]
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
-  policies {
+  rules {
     # ----- Priority 1: Threat Intelligence (major + critical) -----
     name     = "${var.environment_prefix}-threatiq-block"
     action   = "DENY"
@@ -319,8 +320,6 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.all_clusters.uuid]
     dst_smart_groups = [aviatrix_smart_group.threat_intel.uuid]
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
   # ===================================================================
@@ -328,7 +327,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
   # CRITICAL: Both directions explicitly denied
   # ===================================================================
 
-  policies {
+  rules {
     # ----- Priority 10: DENY prod-vpc -> nonprod-vpc -----
     name     = "${var.environment_prefix}-deny-prod-to-nonprod"
     action   = "DENY"
@@ -338,11 +337,9 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.prod_vpc.uuid]
     dst_smart_groups = [aviatrix_smart_group.nonprod_vpc.uuid]
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
-  policies {
+  rules {
     # ----- Priority 11: DENY nonprod-vpc -> prod-vpc (bidirectional) -----
     name     = "${var.environment_prefix}-deny-nonprod-to-prod"
     action   = "DENY"
@@ -352,15 +349,13 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.nonprod_vpc.uuid]
     dst_smart_groups = [aviatrix_smart_group.prod_vpc.uuid]
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
   # ===================================================================
   # Prod Data Protection
   # ===================================================================
 
-  policies {
+  rules {
     # ----- Priority 20: PERMIT prod-vpc -> prod-db TCP/3306,5432 -----
     name     = "${var.environment_prefix}-prod-to-db"
     action   = "PERMIT"
@@ -373,17 +368,13 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     port_ranges {
       lo = 3306
-      hi = 3306
     }
     port_ranges {
       lo = 5432
-      hi = 5432
     }
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
-  policies {
+  rules {
     # ----- Priority 21: DENY nonprod-vpc -> prod-db (protect prod data) -----
     name     = "${var.environment_prefix}-deny-nonprod-to-db"
     action   = "DENY"
@@ -393,15 +384,13 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.nonprod_vpc.uuid]
     dst_smart_groups = [aviatrix_smart_group.prod_db.uuid]
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
   # ===================================================================
   # Layer 2: Namespace Isolation (K8s SmartGroups)
   # ===================================================================
 
-  policies {
+  rules {
     # ----- Priority 30: DENY team-a-dev -> team-b-staging -----
     name     = "${var.environment_prefix}-deny-teama-dev-to-teamb-staging"
     action   = "DENY"
@@ -411,11 +400,9 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.team_a_dev.uuid]
     dst_smart_groups = [aviatrix_smart_group.team_b_staging.uuid]
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
-  policies {
+  rules {
     # ----- Priority 31: DENY team-b-staging -> team-a-dev (bidirectional) -----
     name     = "${var.environment_prefix}-deny-teamb-staging-to-teama-dev"
     action   = "DENY"
@@ -425,11 +412,9 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.team_b_staging.uuid]
     dst_smart_groups = [aviatrix_smart_group.team_a_dev.uuid]
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
-  policies {
+  rules {
     # ----- Priority 32: PERMIT monitoring -> all namespaces TCP/9090,9091 -----
     name     = "${var.environment_prefix}-monitoring-scrape"
     action   = "PERMIT"
@@ -453,15 +438,13 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
       lo = 9090
       hi = 9091
     }
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
   # ===================================================================
   # Egress Controls
   # ===================================================================
 
-  policies {
+  rules {
     # ----- Priority 50: PERMIT all-clusters -> public internet via WebGroups -----
     name     = "${var.environment_prefix}-egress-allowed"
     action   = "PERMIT"
@@ -471,17 +454,14 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.all_clusters.uuid]
     web_groups       = [aviatrix_web_group.public_internet.uuid]
-    dst_smart_groups     = ["def000ad-0000-0000-0000-000000000001"]
+    dst_smart_groups = ["def000ad-0000-0000-0000-000000000001"]
 
     port_ranges {
       lo = 443
-      hi = 443
     }
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
-  policies {
+  rules {
     # ----- Priority 51: Sandbox relaxed egress (broader, still no prod data) -----
     name     = "${var.environment_prefix}-sandbox-egress"
     action   = "PERMIT"
@@ -491,14 +471,11 @@ resource "aviatrix_distributed_firewalling_policy_list" "pattern_c" {
 
     src_smart_groups = [aviatrix_smart_group.sandbox.uuid]
     web_groups       = [aviatrix_web_group.sandbox_relaxed_egress.uuid]
-    dst_smart_groups     = ["def000ad-0000-0000-0000-000000000001"]
+    dst_smart_groups = ["def000ad-0000-0000-0000-000000000001"]
 
     port_ranges {
       lo = 443
-      hi = 443
     }
-
-    flow_app_requirement = "APP_UNSPECIFIED"
   }
 
   # ===================================================================

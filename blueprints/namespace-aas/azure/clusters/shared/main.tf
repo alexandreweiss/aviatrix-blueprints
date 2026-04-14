@@ -73,7 +73,7 @@ provider "kubernetes" {
 #####################
 
 module "shared_aks" {
-  source = "../../../azure-aks-multicluster/modules/aks-cluster"
+  source = "../../../../azure-aks-multicluster/modules/aks-cluster"
 
   cluster_name        = data.terraform_remote_state.network.outputs.shared_cluster_name
   resource_group_name = data.terraform_remote_state.network.outputs.shared_resource_group_name

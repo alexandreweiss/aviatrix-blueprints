@@ -77,7 +77,7 @@ provider "kubernetes" {
 #####################
 
 module "shared_gke" {
-  source = "../../../gcp-gke-multicluster/modules/gke-cluster"
+  source = "../../../../gcp-gke-multicluster/modules/gke-cluster"
 
   cluster_name = local.cluster_name
   project      = local.gcp_project

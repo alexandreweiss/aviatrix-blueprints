@@ -3,6 +3,7 @@
 #####################
 
 resource "aviatrix_distributed_firewalling_config" "main" {
+  count                          = var.disable_dcf_on_destroy ? 1 : 0
   enable_distributed_firewalling = true
 }
 
@@ -313,21 +314,19 @@ resource "aviatrix_web_group" "github_aviatrix" {
 #####################
 
 #####################
-# DCF Policy List
-#
-# Using aviatrix_distributed_firewalling_policy_list instead of aviatrix_dcf_ruleset
-# because only one dcf_ruleset can attach to the TERRAFORM_BEFORE_UI_MANAGED point.
-# policy_list uses a different mechanism and can coexist with other rulesets.
+# DCF Ruleset
 #####################
 
-resource "aviatrix_distributed_firewalling_policy_list" "caas" {
+resource "aviatrix_dcf_ruleset" "caas" {
   depends_on = [time_sleep.wait_for_dcf]
+  name       = "caas-aws"
+  attach_to  = "defa11a1-3000-4001-0000-000000000000"
 
   #############################
   # THREAT PREVENTION (Priority 0-1)
   #############################
 
-  policies {
+  rules {
     name             = "caas-block-geo"
     action           = "DENY"
     priority         = 100
@@ -337,7 +336,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.geo_blocked.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-block-threat"
     action           = "DENY"
     priority         = 101
@@ -356,7 +355,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
   # - Use Hostname SmartGroups for service destinations
   #############################
 
-  policies {
+  rules {
     name             = "caas-team-a-to-team-b-api"
     action           = "PERMIT"
     priority         = 110
@@ -366,11 +365,10 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_b_service.uuid]
     port_ranges {
       lo = 443
-      hi = 443
     }
   }
 
-  policies {
+  rules {
     name             = "caas-team-b-to-team-a-api"
     action           = "PERMIT"
     priority         = 111
@@ -380,7 +378,6 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_a_service.uuid]
     port_ranges {
       lo = 8080
-      hi = 8080
     }
   }
 
@@ -389,7 +386,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
   # CRITICAL: Always deny BOTH directions explicitly.
   #############################
 
-  policies {
+  rules {
     name             = "caas-deny-a-to-c"
     action           = "DENY"
     priority         = 120
@@ -399,7 +396,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_c_vpc.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-deny-c-to-a"
     action           = "DENY"
     priority         = 121
@@ -409,7 +406,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_a_vpc.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-deny-b-to-c"
     action           = "DENY"
     priority         = 122
@@ -419,7 +416,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_c_vpc.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-deny-c-to-b"
     action           = "DENY"
     priority         = 123
@@ -433,19 +430,17 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
   # EGRESS - EKS Required (Priority 150)
   #############################
 
-  policies {
-    name                 = "caas-egress-eks-required"
-    action               = "PERMIT"
-    priority             = 150
-    protocol             = "TCP"
-    logging              = true
-    src_smart_groups     = [aviatrix_smart_group.all_eks_clusters.uuid]
-    dst_smart_groups     = [local.public_internet_uuid]
-    web_groups           = [aviatrix_web_group.eks_required.uuid]
-    flow_app_requirement = "APP_UNSPECIFIED"
+  rules {
+    name             = "caas-egress-eks-required"
+    action           = "PERMIT"
+    priority         = 150
+    protocol         = "TCP"
+    logging          = true
+    src_smart_groups = [aviatrix_smart_group.all_eks_clusters.uuid]
+    dst_smart_groups = [local.public_internet_uuid]
+    web_groups       = [aviatrix_web_group.eks_required.uuid]
     port_ranges {
       lo = 443
-      hi = 443
     }
   }
 
@@ -461,7 +456,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
 
 output "dcf_ruleset_uuid" {
   description = "UUID of the DCF ruleset"
-  value       = aviatrix_distributed_firewalling_policy_list.caas.id
+  value       = aviatrix_dcf_ruleset.caas.id
 }
 
 output "smartgroup_team_a_vpc_uuid" {

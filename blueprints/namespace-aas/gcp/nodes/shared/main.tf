@@ -90,7 +90,7 @@ resource "helm_release" "k8s_firewall" {
 #####################
 
 module "shared_node_pool" {
-  source = "../../../gcp-gke-multicluster/modules/gke-node-pool"
+  source = "../../../../gcp-gke-multicluster/modules/gke-node-pool"
 
   # Cluster identity — from cluster state (exists at plan time)
   cluster_name = data.terraform_remote_state.cluster.outputs.cluster_name

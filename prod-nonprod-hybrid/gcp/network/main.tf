@@ -44,10 +44,9 @@ provider "google" {
 # ---------------------------------------------------------------------------
 
 resource "aviatrix_vpc" "transit" {
-  cloud_type           = 4 # GCP
-  account_name         = var.gcp_account_name
-  name                 = "${var.environment_prefix}-transit"
-  aviatrix_transit_vpc = true
+  cloud_type   = 4 # GCP
+  account_name = var.gcp_account_name
+  name         = "${var.environment_prefix}-transit"
 
   subnets {
     name   = "${var.environment_prefix}-transit-subnet"
@@ -61,11 +60,11 @@ resource "aviatrix_transit_gateway" "main" {
   account_name = var.gcp_account_name
   gw_name      = "${var.environment_prefix}-transit"
   vpc_id       = aviatrix_vpc.transit.vpc_id
-  vpc_reg      = "${var.gcp_region}-a"
+  vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.transit_gw_size
   subnet       = var.transit_cidr
 
-  enable_transit_firenet              = true
+  enable_transit_firenet              = false
   enable_segmentation                 = true
   enable_transit_summarize_cidr_to_tgw = false
   connected_transit                   = true
@@ -96,7 +95,7 @@ resource "aviatrix_spoke_gateway" "prod" {
   account_name = var.gcp_account_name
   gw_name      = "${var.environment_prefix}-prod-spoke"
   vpc_id       = aviatrix_vpc.prod.vpc_id
-  vpc_reg      = "${var.gcp_region}-a"
+  vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.spoke_gw_size
   subnet       = var.prod_vpc_cidr
 
@@ -104,7 +103,7 @@ resource "aviatrix_spoke_gateway" "prod" {
 
   ha_gw_size = var.enable_ha ? var.spoke_gw_size : null
   ha_subnet  = var.enable_ha ? var.prod_vpc_cidr : null
-  ha_zone    = var.enable_ha ? "${var.gcp_region}-b" : null
+  ha_zone    = var.enable_ha ? "${var.gcp_region}-c" : null
 }
 
 resource "aviatrix_spoke_transit_attachment" "prod" {
@@ -134,7 +133,7 @@ resource "aviatrix_spoke_gateway" "nonprod" {
   account_name = var.gcp_account_name
   gw_name      = "${var.environment_prefix}-nonprod-spoke"
   vpc_id       = aviatrix_vpc.nonprod.vpc_id
-  vpc_reg      = "${var.gcp_region}-a"
+  vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.spoke_gw_size
   subnet       = var.nonprod_vpc_cidr
 
@@ -142,7 +141,7 @@ resource "aviatrix_spoke_gateway" "nonprod" {
 
   ha_gw_size = var.enable_ha ? var.spoke_gw_size : null
   ha_subnet  = var.enable_ha ? var.nonprod_vpc_cidr : null
-  ha_zone    = var.enable_ha ? "${var.gcp_region}-b" : null
+  ha_zone    = var.enable_ha ? "${var.gcp_region}-c" : null
 }
 
 resource "aviatrix_spoke_transit_attachment" "nonprod" {
@@ -172,13 +171,13 @@ resource "aviatrix_spoke_gateway" "db" {
   account_name = var.gcp_account_name
   gw_name      = "${var.environment_prefix}-db-spoke"
   vpc_id       = aviatrix_vpc.db.vpc_id
-  vpc_reg      = "${var.gcp_region}-a"
+  vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.db_spoke_gw_size
   subnet       = var.db_spoke_cidr
 
   ha_gw_size = var.enable_ha ? var.db_spoke_gw_size : null
   ha_subnet  = var.enable_ha ? var.db_spoke_cidr : null
-  ha_zone    = var.enable_ha ? "${var.gcp_region}-b" : null
+  ha_zone    = var.enable_ha ? "${var.gcp_region}-c" : null
 }
 
 resource "aviatrix_spoke_transit_attachment" "db" {
@@ -199,13 +198,13 @@ resource "google_dns_managed_zone" "internal" {
 
   private_visibility_config {
     networks {
-      network_url = aviatrix_vpc.transit.vpc_id
+      network_url = "projects/${var.gcp_project_id}/global/networks/${split("~-~", aviatrix_vpc.transit.vpc_id)[0]}"
     }
     networks {
-      network_url = aviatrix_vpc.prod.vpc_id
+      network_url = "projects/${var.gcp_project_id}/global/networks/${split("~-~", aviatrix_vpc.prod.vpc_id)[0]}"
     }
     networks {
-      network_url = aviatrix_vpc.nonprod.vpc_id
+      network_url = "projects/${var.gcp_project_id}/global/networks/${split("~-~", aviatrix_vpc.nonprod.vpc_id)[0]}"
     }
   }
 }
