@@ -36,7 +36,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     google = {
       source  = "hashicorp/google"
@@ -87,7 +87,7 @@ locals {
 
 module "gcp_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   name    = "${var.name_prefix}-transit"
   cloud   = "GCP"
@@ -129,7 +129,7 @@ module "team_a_vpc" {
 
 module "team_a_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
   name       = "${var.name_prefix}-team-a-spoke"
@@ -204,7 +204,7 @@ module "team_b_vpc" {
 
 module "team_b_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
   name       = "${var.name_prefix}-team-b-spoke"
@@ -276,7 +276,7 @@ module "team_c_vpc" {
 
 module "team_c_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
   name       = "${var.name_prefix}-team-c-spoke"
@@ -335,7 +335,7 @@ resource "aviatrix_gateway_snat" "team_c_spoke_snat" {
 
 module "spoke_db" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud          = "GCP"
   name           = "${var.name_prefix}-db-spoke"

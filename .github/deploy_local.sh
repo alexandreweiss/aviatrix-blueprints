@@ -143,11 +143,28 @@ run_deploy() {
     local crds_dir="${BASE_DIR}/k8s-apps/dcf-crd"
     if [ -d "$crds_dir" ]; then
       header "Layer 4: CRDs"
+
+      # Refresh kubeconfig for each target cluster before applying CRDs
+      local region="${AWS_DEFAULT_REGION:-us-east-2}"
+      for target in "${TARGETS[@]}"; do
+        local cluster_dir="${BASE_DIR}/clusters/${target}"
+        if [ -d "$cluster_dir" ] && [ -f "$cluster_dir/terraform.tfstate" ]; then
+          local cluster_name
+          cluster_name=$(terraform -chdir="$cluster_dir" output -raw cluster_name 2>/dev/null || echo "")
+          if [ -n "$cluster_name" ]; then
+            info "Updating kubeconfig for ${cluster_name}..."
+            aws eks update-kubeconfig --name "$cluster_name" --region "$region" --alias "$cluster_name" 2>/dev/null \
+              && ok "kubeconfig updated for ${cluster_name}" \
+              || warn "Could not update kubeconfig for ${cluster_name}"
+          fi
+        fi
+      done
+
       info "Applying Kubernetes manifests from ${crds_dir}..."
       for f in "${crds_dir}"/*.yaml; do
         [ -f "$f" ] || continue
         info "kubectl apply -f $(basename "$f")"
-        kubectl apply -f "$f"
+        kubectl apply -f "$f" --validate=false
         ok "Applied $(basename "$f")"
       done
     else

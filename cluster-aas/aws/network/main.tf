@@ -33,7 +33,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -79,7 +79,7 @@ locals {
 
 module "aws_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   name    = "${var.name_prefix}-transit"
   cloud   = "AWS"
@@ -157,7 +157,7 @@ resource "aws_subnet" "team_a_pods" {
 
 module "team_a_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "AWS"
   name       = "${var.name_prefix}-team-a-spoke"
@@ -274,7 +274,7 @@ resource "aws_subnet" "team_b_pods" {
 
 module "team_b_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "AWS"
   name       = "${var.name_prefix}-team-b-spoke"
@@ -377,7 +377,7 @@ resource "aws_subnet" "team_c_pods" {
 
 module "team_c_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "AWS"
   name       = "${var.name_prefix}-team-c-spoke"
@@ -436,7 +436,7 @@ resource "aviatrix_gateway_snat" "team_c_spoke_snat" {
 
 module "spoke_db" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud          = "AWS"
   name           = "${var.name_prefix}-db-spoke"

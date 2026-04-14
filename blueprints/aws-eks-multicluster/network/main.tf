@@ -4,7 +4,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -44,7 +44,7 @@ locals {
 
 module "aws_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   name    = "${var.name_prefix}-transit"
   cloud   = "AWS"
@@ -91,7 +91,7 @@ module "frontend_vpc" {
 
 module "frontend_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "AWS"
   name       = "${var.name_prefix}-frontend-spoke"
@@ -178,7 +178,7 @@ module "backend_vpc" {
 
 module "backend_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "AWS"
   name       = "${var.name_prefix}-backend-spoke"
@@ -249,7 +249,7 @@ resource "aviatrix_gateway_snat" "backend_spoke_snat" {
 
 module "spoke_db" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud          = "AWS"
   name           = "${var.name_prefix}-db-spoke"

@@ -27,7 +27,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -59,7 +59,7 @@ locals {
 
 module "azure_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   name    = "${var.name_prefix}-transit"
   cloud   = "Azure"
@@ -112,7 +112,7 @@ module "shared_vnet" {
 
 module "shared_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "Azure"
   name       = "${var.name_prefix}-shared-spoke"

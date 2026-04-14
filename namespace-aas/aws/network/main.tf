@@ -32,7 +32,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -59,7 +59,7 @@ locals {
 
 module "aws_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   name    = "${var.name_prefix}-transit"
   cloud   = "AWS"
@@ -130,6 +130,8 @@ resource "aws_subnet" "pods" {
   cidr_block        = cidrsubnet(local.pod_cidr, 2, count.index)
   availability_zone = ["${var.aws_region}a", "${var.aws_region}b"][count.index]
 
+  depends_on = [module.shared_vpc]
+
   tags = {
     Name        = "${var.name_prefix}-shared-pods-${["a", "b"][count.index]}"
     Environment = var.env
@@ -144,7 +146,7 @@ resource "aws_subnet" "pods" {
 
 module "shared_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "AWS"
   name       = "${var.name_prefix}-shared-spoke"

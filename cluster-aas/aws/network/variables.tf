@@ -77,3 +77,9 @@ variable "db_private_ip" {
   type        = string
   default     = "10.5.0.10"
 }
+
+variable "disable_dcf_on_destroy" {
+  description = "Whether to disable DCF globally when this pattern is destroyed. Default false — DCF stays enabled."
+  type        = bool
+  default     = false
+}
