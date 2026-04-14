@@ -1,52 +1,32 @@
-# Aviatrix Blueprints
+# Aviatrix Kubernetes Multi-Cloud Blueprints
 
-Production-ready Terraform lab environments for learning, demonstrating, and testing Aviatrix cloud networking solutions.
+Terraform blueprints for deploying multi-cluster Kubernetes environments with Aviatrix transit networking and Distributed Cloud Firewall (DCF).
 
-![Aviatrix Blueprints](aviatrix_blueprints_logo.png)
+## Patterns
 
-> [!TIP]
-> **🤖 Aviatrix Blueprints are Optimized for Claude Code**
->
-> Get AI-assisted deployment with prerequisite checks, cost estimates, and automated orchestration.
->
-> | Skill | Description |
-> |-------|-------------|
-> | `/deploy-blueprint` | Guided deployment with prerequisite validation |
-> | `/analyze-blueprint` | Resource inventory and cost estimates |
->
-> [Get Claude Code](https://claude.ai/code)
+| Pattern | Directory | Description | Isolation Model |
+|---------|-----------|-------------|-----------------|
+| **A: Cluster-as-a-Service** | [`cluster-aas/`](cluster-aas/) | Dedicated cluster per team | VPC-level (hard boundary) |
+| **B: Namespace-as-a-Service** | [`namespace-aas/`](namespace-aas/) | Single shared cluster, namespace per team | Namespace-level (DCF + RBAC) |
+| **C: Prod/Non-Prod Hybrid** | [`prod-nonprod-hybrid/`](prod-nonprod-hybrid/) | Separate prod + nonprod clusters with NS-aaS | Two-layer (VPC + namespace) |
 
-## Quick Start with Claude Code
+Each pattern supports AWS, Azure, and GCP. Standalone CSP-specific blueprints are also available:
 
-```bash
-# Clone and open with Claude Code
-git clone https://github.com/aviatrix/aviatrix-blueprints.git
-cd aviatrix-blueprints
-claude
+| Blueprint | Directory | Description |
+|-----------|-----------|-------------|
+| Azure AKS Multi-Cluster | [`azure-aks-multicluster/`](azure-aks-multicluster/) | Frontend/backend AKS clusters with FireNet |
+| GCP GKE Multi-Cluster | [`gcp-gke-multicluster/`](gcp-gke-multicluster/) | Frontend/backend GKE clusters with Datapath v2 |
+
+## 4-Layer Deployment Model
+
+All patterns follow the same sequential layer structure:
+
 ```
-
-Inside Claude Code:
-- `/deploy-blueprint aws-eks-multicluster` — Deploy with guided assistance
-- `/analyze-blueprint aws-eks-multicluster` — Preview resources and costs before deploying
-
-## What are Blueprints?
-
-Blueprints are **complete, deployable lab environments** that demonstrate Aviatrix capabilities in real-world scenarios. Unlike reusable Terraform modules, blueprints are designed to be:
-
-- **Self-contained**: Everything needed to deploy a working environment
-- **Educational**: Clear documentation explaining what's being built and why
-- **Demonstrable**: Built-in test scenarios for showcasing functionality
-- **Ephemeral**: Designed for temporary use with easy cleanup
-
-## Blueprint Tiers
-
-| Tier | Description | Requirements |
-|------|-------------|--------------|
-| **Verified** | Validated by Aviatrix QA team, tested against specific controller versions | Full QA and SE review, version compatibility matrix |
-| **Community** | Contributed by the community, functional but not officially validated | Validated by the Aviatrix SE and Professional Services |
-
-## Blueprint Catalog
-
+Layer 1: Network    →  Transit GW, spoke GWs, VPCs/VNets, SNAT, DNS
+Layer 2: Clusters   →  EKS/AKS/GKE control planes, IRSA/Workload Identity
+Layer 3: Nodes      →  Node groups, Helm charts (k8s-firewall, ALB/Ingress, ExternalDNS)
+Layer 4: CRDs       →  Namespaces, FirewallPolicy, WebGroupPolicy manifests
+```
 | Blueprint | Description | Cloud(s) | Tier | Status |
 |-----------|-------------|----------|------|--------|
 | [aws-eks-multicluster](blueprints/aws-eks-multicluster/) | Distributed Cloud Firewall with EKS | AWS | Community | 🚧 In Progress |
@@ -58,92 +38,88 @@ Blueprints are **complete, deployable lab environments** that demonstrate Aviatr
 
 Before deploying any blueprint, ensure you have:
 
-- An [Aviatrix Enterprise or Aviatrix Cloud Control Plane](docs/prerequisites/aviatrix-controller.md) deployed and accessible
-- [Terraform](docs/prerequisites/terraform.md) installed (v1.5+)
-- Cloud provider CLI configured for your target cloud:
-  - [AWS CLI](docs/prerequisites/aws-cli.md)
-  - [Azure CLI](docs/prerequisites/azure-cli.md)
-  - [Google Cloud CLI](docs/prerequisites/gcloud-cli.md)
-- Additional tools as required by specific blueprints (e.g., [kubectl](docs/prerequisites/kubectl.md))
+Layers must be deployed in order. Destruction is reverse order.
 
-See the [Prerequisites Overview](docs/prerequisites/README.md) for detailed setup instructions.
+## Quick Start
 
-### 2. Deploy a Blueprint
+### One-Time Setup (GitHub Actions)
 
 ```bash
-# Clone the repository
-git clone https://github.com/aviatrix/aviatrix-blueprints.git
-cd aviatrix-blueprints
-
-# Navigate to your chosen blueprint
-cd blueprints/aws-eks-multicluster
-
-# Review the README for specific requirements
-cat README.md
-
-# Copy and configure variables
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values
-
-# Deploy
-terraform init
-terraform plan
-terraform apply
+cd .github
+python3 setup_gui.py   # Web GUI (opens browser)
+# or
+./setup.sh             # Interactive CLI
 ```
 
-### 3. Explore and Learn
+Configures S3 state bucket, GitHub secrets/variables, environments, and OIDC. See [WORKFLOW-GUIDE.md](WORKFLOW-GUIDE.md).
 
-Each blueprint includes:
-- Architecture diagrams
-- Step-by-step deployment instructions
-- Test scenarios to validate functionality
-- Demo walkthroughs for presentations
+### Manual Deploy
 
-### 4. Clean Up
+Pick a pattern and one or more CSPs. Each `{pattern}/{csp}/` directory is a self-contained stack — deploy them independently or combine across clouds.
 
 ```bash
-# Destroy all resources when done
-terraform destroy
+# Example: Pattern C on AWS
+cd prod-nonprod-hybrid/aws
+cd network   && terraform init && terraform apply -auto-approve && cd ..
+cd clusters/prod    && terraform init && terraform apply -auto-approve && cd ../..
+cd clusters/nonprod && terraform init && terraform apply -auto-approve && cd ../..
+cd nodes/prod       && terraform init && terraform apply -auto-approve && cd ../..
+cd nodes/nonprod    && terraform init && terraform apply -auto-approve && cd ../..
+kubectl apply -f k8s-apps/dcf-crd/
+
+# Example: Pattern A on Azure + GCP simultaneously
+cd cluster-aas/azure/network && terraform init && terraform apply -auto-approve &
+cd cluster-aas/gcp/network   && terraform init && terraform apply -auto-approve &
+wait
 ```
+
+You can deploy the same pattern across multiple CSPs (e.g., `cluster-aas/aws` + `cluster-aas/azure` + `cluster-aas/gcp`) or mix patterns per cloud. The Aviatrix transit connects them all.
+
+## Shared Modules
+
+| Module | Path | Description |
+|--------|------|-------------|
+| Recommendations | [`modules/recommendations/`](modules/) | Optional production-hardening add-ons (Calico, Gatekeeper, Falco, Prometheus, Velero, etc.) |
+
+All recommendation toggles default to `false`. See [`modules/README.md`](modules/README.md) for profiles and usage.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [DEPLOYMENT-WORKFLOW.md](DEPLOYMENT-WORKFLOW.md) | Manual deployment guide for all patterns with verification checklists |
+| [WORKFLOW-GUIDE.md](WORKFLOW-GUIDE.md) | GitHub Actions CI/CD setup, usage, state management, and troubleshooting |
+
+## Prerequisites
+
+- Aviatrix Controller with CoPilot
+- Aviatrix-onboarded cloud account(s)
+- Terraform >= 1.5
+- Cloud CLI (aws/az/gcloud) + kubectl >= 1.28
+- For CI/CD: GitHub repo with OIDC IAM role
 
 ## Repository Structure
 
 ```
-aviatrix-blueprints/
-├── docs/                    # Documentation and guides
-│   ├── prerequisites/       # Setup guides for required tools
-│   ├── getting-started.md   # Quick start guide
-│   └── blueprint-standards.md
-├── modules/                 # Shared Terraform modules (future)
-├── blueprints/              # Deployable lab environments
-│   ├── _template/           # Template for new blueprints
-│   └── aws-eks-multicluster/             # Individual blueprints...
-└── .github/                 # CI/CD and templates
+blueprints/
+├── .github/
+│   ├── setup.sh              # CLI setup script
+│   ├── setup_gui.py          # Web GUI setup
+│   └── bootstrap/            # S3 state bucket Terraform
+├── cluster-aas/              # Pattern A
+│   ├── aws/
+│   ├── azure/
+│   └── gcp/
+├── namespace-aas/            # Pattern B
+│   ├── aws/
+│   ├── azure/
+│   └── gcp/
+├── prod-nonprod-hybrid/      # Pattern C (recommended)
+│   ├── aws/
+│   ├── azure/
+│   └── gcp/
+├── azure-aks-multicluster/   # Standalone Azure blueprint
+├── gcp-gke-multicluster/     # Standalone GCP blueprint
+└── modules/
+    └── recommendations/      # Optional hardening add-ons
 ```
-
-## Documentation
-
-- [Getting Started Guide](docs/getting-started.md)
-- [Blueprint Standards](docs/blueprint-standards.md)
-- [Contributing Guide](CONTRIBUTING.md)
-- [Prerequisites](docs/prerequisites/README.md)
-
-## Contributing
-
-We welcome contributions! Whether you're fixing a bug, improving documentation, or adding a new blueprint, please see our [Contributing Guide](CONTRIBUTING.md).
-
-### Adding a New Blueprint
-
-1. Copy the [blueprint template](blueprints/_template/)
-2. Follow the [Blueprint Standards](docs/blueprint-standards.md)
-3. Submit a PR for review
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/aviatrix/aviatrix-blueprints/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/aviatrix/aviatrix-blueprints/discussions)
-- **Aviatrix Documentation**: [docs.aviatrix.com](https://docs.aviatrix.com)
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
