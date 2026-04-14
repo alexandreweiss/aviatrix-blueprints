@@ -53,7 +53,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_vpc" {
-  name = "sg-team-a-vpc"
+  name = "caas-aws-sg-team-a-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -63,7 +63,7 @@ resource "aviatrix_smart_group" "team_a_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_b_vpc" {
-  name = "sg-team-b-vpc"
+  name = "caas-aws-sg-team-b-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -73,7 +73,7 @@ resource "aviatrix_smart_group" "team_b_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_c_vpc" {
-  name = "sg-team-c-vpc"
+  name = "caas-aws-sg-team-c-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -83,7 +83,7 @@ resource "aviatrix_smart_group" "team_c_vpc" {
 }
 
 resource "aviatrix_smart_group" "db_vpc" {
-  name = "sg-db-vpc"
+  name = "caas-aws-sg-db-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -94,7 +94,7 @@ resource "aviatrix_smart_group" "db_vpc" {
 
 # Aggregate SmartGroup for all EKS clusters (egress rules)
 resource "aviatrix_smart_group" "all_eks_clusters" {
-  name = "sg-all-eks-clusters"
+  name = "caas-aws-sg-all-eks-clusters"
   selector {
     match_expressions {
       type = "vpc"
@@ -120,7 +120,7 @@ resource "aviatrix_smart_group" "all_eks_clusters" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_service" {
-  name = "sg-team-a-svc"
+  name = "caas-aws-sg-team-a-svc"
   selector {
     match_expressions {
       fqdn = "team-a.${var.private_dns_zone_name}"
@@ -129,7 +129,7 @@ resource "aviatrix_smart_group" "team_a_service" {
 }
 
 resource "aviatrix_smart_group" "team_b_service" {
-  name = "sg-team-b-svc"
+  name = "caas-aws-sg-team-b-svc"
   selector {
     match_expressions {
       fqdn = "team-b.${var.private_dns_zone_name}"
@@ -138,7 +138,7 @@ resource "aviatrix_smart_group" "team_b_service" {
 }
 
 resource "aviatrix_smart_group" "team_c_service" {
-  name = "sg-team-c-svc"
+  name = "caas-aws-sg-team-c-svc"
   selector {
     match_expressions {
       fqdn = "team-c.${var.private_dns_zone_name}"
@@ -147,7 +147,7 @@ resource "aviatrix_smart_group" "team_c_service" {
 }
 
 resource "aviatrix_smart_group" "database" {
-  name = "sg-database"
+  name = "caas-aws-sg-database"
   selector {
     match_expressions {
       fqdn = "db.${var.private_dns_zone_name}"
@@ -160,7 +160,7 @@ resource "aviatrix_smart_group" "database" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "caas-sg-geo-blocked"
+  name = "caas-aws-sg-geo-blocked"
   selector {
     match_expressions {
       external = "geo"
@@ -184,7 +184,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "caas-sg-threat-intel"
+  name = "caas-aws-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -217,7 +217,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "eks_required" {
-  name = "caas-wg-eks-required"
+  name = "caas-aws-wg-eks-required"
   selector {
     # ECR (Elastic Container Registry)
     match_expressions {
@@ -289,7 +289,7 @@ resource "aviatrix_web_group" "eks_required" {
 }
 
 resource "aviatrix_web_group" "kubernetes_io" {
-  name = "caas-wg-kubernetes-io"
+  name = "caas-aws-wg-kubernetes-io"
   selector {
     match_expressions {
       snifilter = "kubernetes.io"
@@ -298,7 +298,7 @@ resource "aviatrix_web_group" "kubernetes_io" {
 }
 
 resource "aviatrix_web_group" "github_aviatrix" {
-  name = "caas-wg-github-aviatrix"
+  name = "caas-aws-wg-github-aviatrix"
   selector {
     match_expressions {
       urlfilter = "github.com/AviatrixSystems/terraform-provider-aviatrix"

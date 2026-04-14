@@ -40,7 +40,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_vpc" {
-  name = "sg-team-a-vpc"
+  name = "caas-gcp-sg-team-a-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -50,7 +50,7 @@ resource "aviatrix_smart_group" "team_a_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_b_vpc" {
-  name = "sg-team-b-vpc"
+  name = "caas-gcp-sg-team-b-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -60,7 +60,7 @@ resource "aviatrix_smart_group" "team_b_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_c_vpc" {
-  name = "sg-team-c-vpc"
+  name = "caas-gcp-sg-team-c-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -70,7 +70,7 @@ resource "aviatrix_smart_group" "team_c_vpc" {
 }
 
 resource "aviatrix_smart_group" "db_vpc" {
-  name = "sg-db-vpc"
+  name = "caas-gcp-sg-db-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -80,7 +80,7 @@ resource "aviatrix_smart_group" "db_vpc" {
 }
 
 resource "aviatrix_smart_group" "all_gke_clusters" {
-  name = "sg-all-gke-clusters"
+  name = "caas-gcp-sg-all-gke-clusters"
   selector {
     match_expressions {
       type = "vpc"
@@ -102,7 +102,7 @@ resource "aviatrix_smart_group" "all_gke_clusters" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_service" {
-  name = "sg-team-a-svc"
+  name = "caas-gcp-sg-team-a-svc"
   selector {
     match_expressions {
       fqdn = "team-a.${var.dns_private_zone_name}"
@@ -111,7 +111,7 @@ resource "aviatrix_smart_group" "team_a_service" {
 }
 
 resource "aviatrix_smart_group" "team_b_service" {
-  name = "sg-team-b-svc"
+  name = "caas-gcp-sg-team-b-svc"
   selector {
     match_expressions {
       fqdn = "team-b.${var.dns_private_zone_name}"
@@ -120,7 +120,7 @@ resource "aviatrix_smart_group" "team_b_service" {
 }
 
 resource "aviatrix_smart_group" "team_c_service" {
-  name = "sg-team-c-svc"
+  name = "caas-gcp-sg-team-c-svc"
   selector {
     match_expressions {
       fqdn = "team-c.${var.dns_private_zone_name}"
@@ -129,7 +129,7 @@ resource "aviatrix_smart_group" "team_c_service" {
 }
 
 resource "aviatrix_smart_group" "database" {
-  name = "sg-database"
+  name = "caas-gcp-sg-database"
   selector {
     match_expressions {
       fqdn = "db.${var.dns_private_zone_name}"
@@ -142,7 +142,7 @@ resource "aviatrix_smart_group" "database" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "sg-geo-blocked"
+  name = "caas-gcp-sg-geo-blocked"
   selector {
     match_expressions {
       external = "geo"
@@ -160,7 +160,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "sg-threat-intel"
+  name = "caas-gcp-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -186,7 +186,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "gke_required" {
-  name = "wg-gke-required"
+  name = "caas-gcp-wg-gke-required"
   selector {
     match_expressions { snifilter = "gcr.io" }
     match_expressions { snifilter = "*.gcr.io" }
@@ -206,14 +206,14 @@ resource "aviatrix_web_group" "gke_required" {
 }
 
 resource "aviatrix_web_group" "kubernetes_io" {
-  name = "wg-kubernetes-io"
+  name = "caas-gcp-wg-kubernetes-io"
   selector {
     match_expressions { snifilter = "kubernetes.io" }
   }
 }
 
 resource "aviatrix_web_group" "github_aviatrix" {
-  name = "wg-github-aviatrix"
+  name = "caas-gcp-wg-github-aviatrix"
   selector {
     match_expressions { urlfilter = "github.com/AviatrixSystems/terraform-provider-aviatrix" }
     match_expressions { urlfilter = "github.com/AviatrixSystems/avxlabs-docs" }
@@ -262,7 +262,7 @@ resource "aviatrix_dcf_ruleset" "caas" {
   #############################
 
   rules {
-    name             = "Team-A to Team-B API (HTTPS)"
+    name             = "Team-A to Team-B API - HTTPS"
     action           = "PERMIT"
     priority         = 10
     protocol         = "TCP"
@@ -275,7 +275,7 @@ resource "aviatrix_dcf_ruleset" "caas" {
   }
 
   rules {
-    name             = "Team-B to Team-A API (8080)"
+    name             = "Team-B to Team-A API - 8080"
     action           = "PERMIT"
     priority         = 11
     protocol         = "TCP"

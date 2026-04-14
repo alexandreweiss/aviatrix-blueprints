@@ -43,7 +43,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_ns" {
-  name = "team-a-ns"
+  name = "naas-aws-team-a-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -54,7 +54,7 @@ resource "aviatrix_smart_group" "team_a_ns" {
 }
 
 resource "aviatrix_smart_group" "team_b_ns" {
-  name = "team-b-ns"
+  name = "naas-aws-team-b-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -65,7 +65,7 @@ resource "aviatrix_smart_group" "team_b_ns" {
 }
 
 resource "aviatrix_smart_group" "team_c_ns" {
-  name = "team-c-ns"
+  name = "naas-aws-team-c-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -76,7 +76,7 @@ resource "aviatrix_smart_group" "team_c_ns" {
 }
 
 resource "aviatrix_smart_group" "monitoring_ns" {
-  name = "monitoring-ns"
+  name = "naas-aws-monitoring-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -87,7 +87,7 @@ resource "aviatrix_smart_group" "monitoring_ns" {
 }
 
 resource "aviatrix_smart_group" "all_namespaces" {
-  name = "all-team-namespaces"
+  name = "naas-aws-all-team-namespaces"
   selector {
     match_expressions {
       type           = "k8s"
@@ -112,7 +112,7 @@ resource "aviatrix_smart_group" "all_namespaces" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "sg-geo-blocked"
+  name = "naas-aws-sg-geo-blocked"
   selector {
     dynamic "match_expressions" {
       for_each = var.geo_block_countries
@@ -127,7 +127,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "sg-threat-intel"
+  name = "naas-aws-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -158,7 +158,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "eks_required" {
-  name = "wg-eks-required"
+  name = "naas-aws-wg-eks-required"
   selector {
     # EKS control plane
     match_expressions {
@@ -197,7 +197,7 @@ resource "aviatrix_web_group" "eks_required" {
 }
 
 resource "aviatrix_web_group" "approved_egress" {
-  name = "wg-approved-egress"
+  name = "naas-aws-wg-approved-egress"
   selector {
     dynamic "match_expressions" {
       for_each = var.approved_web_domains

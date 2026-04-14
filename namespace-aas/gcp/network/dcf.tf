@@ -41,7 +41,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_ns" {
-  name = "team-a-ns"
+  name = "naas-gcp-team-a-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -52,7 +52,7 @@ resource "aviatrix_smart_group" "team_a_ns" {
 }
 
 resource "aviatrix_smart_group" "team_b_ns" {
-  name = "team-b-ns"
+  name = "naas-gcp-team-b-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -63,7 +63,7 @@ resource "aviatrix_smart_group" "team_b_ns" {
 }
 
 resource "aviatrix_smart_group" "team_c_ns" {
-  name = "team-c-ns"
+  name = "naas-gcp-team-c-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -74,7 +74,7 @@ resource "aviatrix_smart_group" "team_c_ns" {
 }
 
 resource "aviatrix_smart_group" "monitoring_ns" {
-  name = "monitoring-ns"
+  name = "naas-gcp-monitoring-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -85,7 +85,7 @@ resource "aviatrix_smart_group" "monitoring_ns" {
 }
 
 resource "aviatrix_smart_group" "all_namespaces" {
-  name = "all-team-namespaces"
+  name = "naas-gcp-all-team-namespaces"
   selector {
     match_expressions {
       type           = "k8s"
@@ -110,7 +110,7 @@ resource "aviatrix_smart_group" "all_namespaces" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "sg-geo-blocked"
+  name = "naas-gcp-sg-geo-blocked"
   selector {
     dynamic "match_expressions" {
       for_each = var.geo_block_countries
@@ -125,7 +125,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "sg-threat-intel"
+  name = "naas-gcp-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -155,7 +155,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "gke_required" {
-  name = "wg-gke-required"
+  name = "naas-gcp-wg-gke-required"
   selector {
     # GKE control plane and API
     match_expressions {
@@ -198,7 +198,7 @@ resource "aviatrix_web_group" "gke_required" {
 }
 
 resource "aviatrix_web_group" "approved_egress" {
-  name = "wg-approved-egress"
+  name = "naas-gcp-wg-approved-egress"
   selector {
     dynamic "match_expressions" {
       for_each = var.approved_web_domains

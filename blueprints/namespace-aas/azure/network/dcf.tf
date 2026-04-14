@@ -41,7 +41,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_ns" {
-  name = "team-a-ns"
+  name = "naas-azure-team-a-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -52,7 +52,7 @@ resource "aviatrix_smart_group" "team_a_ns" {
 }
 
 resource "aviatrix_smart_group" "team_b_ns" {
-  name = "team-b-ns"
+  name = "naas-azure-team-b-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -63,7 +63,7 @@ resource "aviatrix_smart_group" "team_b_ns" {
 }
 
 resource "aviatrix_smart_group" "team_c_ns" {
-  name = "team-c-ns"
+  name = "naas-azure-team-c-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -74,7 +74,7 @@ resource "aviatrix_smart_group" "team_c_ns" {
 }
 
 resource "aviatrix_smart_group" "monitoring_ns" {
-  name = "monitoring-ns"
+  name = "naas-azure-monitoring-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -85,7 +85,7 @@ resource "aviatrix_smart_group" "monitoring_ns" {
 }
 
 resource "aviatrix_smart_group" "all_namespaces" {
-  name = "all-team-namespaces"
+  name = "naas-azure-all-team-namespaces"
   selector {
     match_expressions {
       type           = "k8s"
@@ -107,7 +107,7 @@ resource "aviatrix_smart_group" "all_namespaces" {
 
 # VNet SmartGroup for the shared cluster (Azure uses -vnet suffix)
 resource "aviatrix_smart_group" "shared_cluster_vnet" {
-  name = "sg-shared-cluster-vnet"
+  name = "naas-azure-sg-shared-cluster-vnet"
   selector {
     match_expressions {
       type = "vpc"
@@ -121,7 +121,7 @@ resource "aviatrix_smart_group" "shared_cluster_vnet" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "sg-geo-blocked"
+  name = "naas-azure-sg-geo-blocked"
   selector {
     dynamic "match_expressions" {
       for_each = var.geo_block_countries
@@ -136,7 +136,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "sg-threat-intel"
+  name = "naas-azure-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -166,7 +166,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "aks_required" {
-  name = "wg-aks-required"
+  name = "naas-azure-wg-aks-required"
   selector {
     # Microsoft Container Registry (MCR)
     match_expressions {
@@ -234,7 +234,7 @@ resource "aviatrix_web_group" "aks_required" {
 }
 
 resource "aviatrix_web_group" "approved_egress" {
-  name = "wg-approved-egress"
+  name = "naas-azure-wg-approved-egress"
   selector {
     dynamic "match_expressions" {
       for_each = var.approved_web_domains
