@@ -72,7 +72,7 @@ variable "pod_cidr" {
 variable "environment_prefix" {
   description = "Prefix for all resource names"
   type        = string
-  default     = "patternc"
+  default     = "pc-gcp"
 }
 
 variable "transit_gw_size" {

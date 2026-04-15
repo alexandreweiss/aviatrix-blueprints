@@ -48,7 +48,7 @@ resource "aviatrix_vpc" "transit" {
   name                 = "${var.environment_prefix}-transit-vnet"
   region               = var.azure_region
   cidr                 = var.transit_cidr
-  aviatrix_transit_vpc = true
+  aviatrix_firenet_vpc = false
 }
 
 resource "aviatrix_transit_gateway" "main" {
