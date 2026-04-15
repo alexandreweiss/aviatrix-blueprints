@@ -166,12 +166,27 @@ resource "aviatrix_spoke_transit_attachment" "db" {
 }
 
 # ---------------------------------------------------------------------------
+# Resource Group for DNS and shared resources
+# ---------------------------------------------------------------------------
+
+resource "azurerm_resource_group" "main" {
+  name     = var.resource_group_name
+  location = var.azure_region
+
+  tags = {
+    Environment = "demo"
+    Pattern     = "prod-nonprod-hybrid"
+    Terraform   = "true"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # DNS — Azure Private DNS Zone
 # ---------------------------------------------------------------------------
 
 resource "azurerm_private_dns_zone" "internal" {
   name                = var.dns_domain
-  resource_group_name = var.resource_group_name
+  resource_group_name = azurerm_resource_group.main.name
 }
 
 # Extract ARM VNet IDs for DNS links
@@ -182,14 +197,14 @@ locals {
 
 resource "azurerm_private_dns_zone_virtual_network_link" "prod" {
   name                  = "${var.environment_prefix}-prod-dns-link"
-  resource_group_name   = var.resource_group_name
+  resource_group_name   = azurerm_resource_group.main.name
   private_dns_zone_name = azurerm_private_dns_zone.internal.name
   virtual_network_id    = local.prod_arm_vnet_id
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "nonprod" {
   name                  = "${var.environment_prefix}-nonprod-dns-link"
-  resource_group_name   = var.resource_group_name
+  resource_group_name   = azurerm_resource_group.main.name
   private_dns_zone_name = azurerm_private_dns_zone.internal.name
   virtual_network_id    = local.nonprod_arm_vnet_id
 }
