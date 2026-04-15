@@ -111,7 +111,7 @@ resource "aviatrix_smart_group" "shared_cluster_vnet" {
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-shared-vnet"
+      name = "${local.name_prefix}-shared-vnet"
     }
   }
 }

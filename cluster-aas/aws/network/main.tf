@@ -55,19 +55,20 @@ provider "aws" {
 }
 
 locals {
-  pod_cidr = var.pod_cidr
+  name_prefix = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
+  pod_cidr    = var.pod_cidr
 
   teams = {
     team-a = {
-      name     = "${var.name_prefix}-team-a"
+      name     = "${local.name_prefix}-team-a"
       vpc_cidr = var.team_a_vpc_cidr
     }
     team-b = {
-      name     = "${var.name_prefix}-team-b"
+      name     = "${local.name_prefix}-team-b"
       vpc_cidr = var.team_b_vpc_cidr
     }
     team-c = {
-      name     = "${var.name_prefix}-team-c"
+      name     = "${local.name_prefix}-team-c"
       vpc_cidr = var.team_c_vpc_cidr
     }
   }
@@ -81,7 +82,7 @@ module "aws_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
   version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "AWS"
   account = var.aviatrix_aws_account_name
   region  = var.aws_region
@@ -112,7 +113,7 @@ module "team_a_vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 
-  name = "${var.name_prefix}-team-a"
+  name = "${local.name_prefix}-team-a"
   cidr = local.teams["team-a"].vpc_cidr
 
   azs             = ["${var.aws_region}a", "${var.aws_region}b"]
@@ -148,7 +149,7 @@ resource "aws_subnet" "team_a_pods" {
   availability_zone = ["${var.aws_region}a", "${var.aws_region}b"][count.index]
 
   tags = {
-    Name        = "${var.name_prefix}-team-a-pods-${["a", "b"][count.index]}"
+    Name        = "${local.name_prefix}-team-a-pods-${["a", "b"][count.index]}"
     Environment = "demo"
     Team        = "team-a"
     Terraform   = "true"
@@ -160,7 +161,7 @@ module "team_a_spoke" {
   version = "~> 8.2.0"
 
   cloud      = "AWS"
-  name       = "${var.name_prefix}-team-a-spoke"
+  name       = "${local.name_prefix}-team-a-spoke"
   account    = var.aviatrix_aws_account_name
   region     = var.aws_region
   transit_gw = module.aws_transit.transit_gateway.gw_name
@@ -232,7 +233,7 @@ module "team_b_vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 
-  name = "${var.name_prefix}-team-b"
+  name = "${local.name_prefix}-team-b"
   cidr = local.teams["team-b"].vpc_cidr
 
   azs             = ["${var.aws_region}a", "${var.aws_region}b"]
@@ -265,7 +266,7 @@ resource "aws_subnet" "team_b_pods" {
   availability_zone = ["${var.aws_region}a", "${var.aws_region}b"][count.index]
 
   tags = {
-    Name        = "${var.name_prefix}-team-b-pods-${["a", "b"][count.index]}"
+    Name        = "${local.name_prefix}-team-b-pods-${["a", "b"][count.index]}"
     Environment = "demo"
     Team        = "team-b"
     Terraform   = "true"
@@ -277,7 +278,7 @@ module "team_b_spoke" {
   version = "~> 8.2.0"
 
   cloud      = "AWS"
-  name       = "${var.name_prefix}-team-b-spoke"
+  name       = "${local.name_prefix}-team-b-spoke"
   account    = var.aviatrix_aws_account_name
   region     = var.aws_region
   transit_gw = module.aws_transit.transit_gateway.gw_name
@@ -335,7 +336,7 @@ module "team_c_vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 
-  name = "${var.name_prefix}-team-c"
+  name = "${local.name_prefix}-team-c"
   cidr = local.teams["team-c"].vpc_cidr
 
   azs             = ["${var.aws_region}a", "${var.aws_region}b"]
@@ -368,7 +369,7 @@ resource "aws_subnet" "team_c_pods" {
   availability_zone = ["${var.aws_region}a", "${var.aws_region}b"][count.index]
 
   tags = {
-    Name        = "${var.name_prefix}-team-c-pods-${["a", "b"][count.index]}"
+    Name        = "${local.name_prefix}-team-c-pods-${["a", "b"][count.index]}"
     Environment = "demo"
     Team        = "team-c"
     Terraform   = "true"
@@ -380,7 +381,7 @@ module "team_c_spoke" {
   version = "~> 8.2.0"
 
   cloud      = "AWS"
-  name       = "${var.name_prefix}-team-c-spoke"
+  name       = "${local.name_prefix}-team-c-spoke"
   account    = var.aviatrix_aws_account_name
   region     = var.aws_region
   transit_gw = module.aws_transit.transit_gateway.gw_name
@@ -439,7 +440,7 @@ module "spoke_db" {
   version = "~> 8.2.0"
 
   cloud          = "AWS"
-  name           = "${var.name_prefix}-db-spoke"
+  name           = "${local.name_prefix}-db-spoke"
   cidr           = var.db_vpc_cidr
   account        = var.aviatrix_aws_account_name
   region         = var.aws_region

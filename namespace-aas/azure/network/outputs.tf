@@ -118,5 +118,5 @@ output "pod_cidr" {
 
 output "name_prefix" {
   description = "Name prefix used for all resources"
-  value       = var.name_prefix
+  value       = local.name_prefix
 }

@@ -127,6 +127,12 @@ variable "teams" {
   }
 }
 
+variable "name_suffix" {
+  description = "Optional suffix appended to all resource names for uniqueness (e.g., 'ab12')"
+  type        = string
+  default     = ""
+}
+
 variable "disable_dcf_on_destroy" {
   description = "Whether to disable DCF globally when this pattern is destroyed. Default false — DCF stays enabled."
   type        = bool

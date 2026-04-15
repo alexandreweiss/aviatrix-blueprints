@@ -39,6 +39,10 @@ provider "google" {
   region  = var.gcp_region
 }
 
+locals {
+  name_prefix = var.name_suffix != "" ? "${var.environment_prefix}-${var.name_suffix}" : var.environment_prefix
+}
+
 # ---------------------------------------------------------------------------
 # Transit VPC + Gateway
 # ---------------------------------------------------------------------------
@@ -46,10 +50,10 @@ provider "google" {
 resource "aviatrix_vpc" "transit" {
   cloud_type   = 4 # GCP
   account_name = var.gcp_account_name
-  name         = "${var.environment_prefix}-transit"
+  name         = "${local.name_prefix}-transit"
 
   subnets {
-    name   = "${var.environment_prefix}-transit-subnet"
+    name   = "${local.name_prefix}-transit-subnet"
     cidr   = var.transit_cidr
     region = var.gcp_region
   }
@@ -58,7 +62,7 @@ resource "aviatrix_vpc" "transit" {
 resource "aviatrix_transit_gateway" "main" {
   cloud_type   = 4
   account_name = var.gcp_account_name
-  gw_name      = "${var.environment_prefix}-transit"
+  gw_name      = "${local.name_prefix}-transit"
   vpc_id       = aviatrix_vpc.transit.vpc_id
   vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.transit_gw_size
@@ -80,11 +84,11 @@ resource "aviatrix_transit_gateway" "main" {
 resource "aviatrix_vpc" "prod" {
   cloud_type           = 4
   account_name         = var.gcp_account_name
-  name                 = "${var.environment_prefix}-prod"
+  name                 = "${local.name_prefix}-prod"
   aviatrix_firenet_vpc = false
 
   subnets {
-    name   = "${var.environment_prefix}-prod-subnet"
+    name   = "${local.name_prefix}-prod-subnet"
     cidr   = var.prod_vpc_cidr
     region = var.gcp_region
   }
@@ -93,7 +97,7 @@ resource "aviatrix_vpc" "prod" {
 resource "aviatrix_spoke_gateway" "prod" {
   cloud_type   = 4
   account_name = var.gcp_account_name
-  gw_name      = "${var.environment_prefix}-prod-spoke"
+  gw_name      = "${local.name_prefix}-prod-spoke"
   vpc_id       = aviatrix_vpc.prod.vpc_id
   vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.spoke_gw_size
@@ -118,11 +122,11 @@ resource "aviatrix_spoke_transit_attachment" "prod" {
 resource "aviatrix_vpc" "nonprod" {
   cloud_type           = 4
   account_name         = var.gcp_account_name
-  name                 = "${var.environment_prefix}-nonprod"
+  name                 = "${local.name_prefix}-nonprod"
   aviatrix_firenet_vpc = false
 
   subnets {
-    name   = "${var.environment_prefix}-nonprod-subnet"
+    name   = "${local.name_prefix}-nonprod-subnet"
     cidr   = var.nonprod_vpc_cidr
     region = var.gcp_region
   }
@@ -131,7 +135,7 @@ resource "aviatrix_vpc" "nonprod" {
 resource "aviatrix_spoke_gateway" "nonprod" {
   cloud_type   = 4
   account_name = var.gcp_account_name
-  gw_name      = "${var.environment_prefix}-nonprod-spoke"
+  gw_name      = "${local.name_prefix}-nonprod-spoke"
   vpc_id       = aviatrix_vpc.nonprod.vpc_id
   vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.spoke_gw_size
@@ -156,11 +160,11 @@ resource "aviatrix_spoke_transit_attachment" "nonprod" {
 resource "aviatrix_vpc" "db" {
   cloud_type           = 4
   account_name         = var.gcp_account_name
-  name                 = "${var.environment_prefix}-prod-db"
+  name                 = "${local.name_prefix}-prod-db"
   aviatrix_firenet_vpc = false
 
   subnets {
-    name   = "${var.environment_prefix}-db-subnet"
+    name   = "${local.name_prefix}-db-subnet"
     cidr   = var.db_spoke_cidr
     region = var.gcp_region
   }
@@ -169,7 +173,7 @@ resource "aviatrix_vpc" "db" {
 resource "aviatrix_spoke_gateway" "db" {
   cloud_type   = 4
   account_name = var.gcp_account_name
-  gw_name      = "${var.environment_prefix}-db-spoke"
+  gw_name      = "${local.name_prefix}-db-spoke"
   vpc_id       = aviatrix_vpc.db.vpc_id
   vpc_reg      = "${var.gcp_region}-b"
   gw_size      = var.db_spoke_gw_size
@@ -191,7 +195,7 @@ resource "aviatrix_spoke_transit_attachment" "db" {
 # ---------------------------------------------------------------------------
 
 resource "google_dns_managed_zone" "internal" {
-  name        = "${var.environment_prefix}-internal"
+  name        = "${local.name_prefix}-internal"
   dns_name    = "${var.dns_domain}."
   description = "Private DNS zone for Pattern C services"
   visibility  = "private"

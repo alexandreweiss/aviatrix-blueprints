@@ -44,7 +44,7 @@ resource "aviatrix_smart_group" "team_a_vpc" {
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-a"
+      name = "${local.name_prefix}-team-a"
     }
   }
 }
@@ -54,7 +54,7 @@ resource "aviatrix_smart_group" "team_b_vpc" {
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-b"
+      name = "${local.name_prefix}-team-b"
     }
   }
 }
@@ -64,7 +64,7 @@ resource "aviatrix_smart_group" "team_c_vpc" {
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-c"
+      name = "${local.name_prefix}-team-c"
     }
   }
 }
@@ -74,7 +74,7 @@ resource "aviatrix_smart_group" "db_vpc" {
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-db-spoke"
+      name = "${local.name_prefix}-db-spoke"
     }
   }
 }
@@ -84,15 +84,15 @@ resource "aviatrix_smart_group" "all_gke_clusters" {
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-a"
+      name = "${local.name_prefix}-team-a"
     }
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-b"
+      name = "${local.name_prefix}-team-b"
     }
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-c"
+      name = "${local.name_prefix}-team-c"
     }
   }
 }

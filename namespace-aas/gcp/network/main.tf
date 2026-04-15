@@ -50,6 +50,7 @@ provider "google" {
 }
 
 locals {
+  name_prefix   = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
   pod_cidr      = var.pod_cidr
   services_cidr = var.services_cidr
 }
@@ -62,7 +63,7 @@ module "gcp_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
   version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "GCP"
   account = var.aviatrix_gcp_account_name
   region  = var.gcp_region
@@ -93,7 +94,7 @@ module "gcp_transit" {
 module "shared_vpc" {
   source = "../../../gcp-gke-multicluster/network/modules/gke-vpc"
 
-  name    = "${var.name_prefix}-shared"
+  name    = "${local.name_prefix}-shared"
   project = var.gcp_project
   region  = var.gcp_region
 
@@ -112,7 +113,7 @@ module "shared_spoke" {
   version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-shared-spoke"
+  name       = "${local.name_prefix}-shared-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name

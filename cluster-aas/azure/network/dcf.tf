@@ -77,7 +77,7 @@ resource "aviatrix_smart_group" "db_vpc" {
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-db-spoke"
+      name = "${local.name_prefix}-db-spoke"
     }
   }
 }

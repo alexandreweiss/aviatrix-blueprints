@@ -43,7 +43,7 @@ provider "aws" {
 resource "aviatrix_transit_gateway" "main" {
   cloud_type   = 1 # AWS
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-transit"
+  gw_name      = "${local.name_prefix}-transit"
   vpc_id       = aviatrix_vpc.transit.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.transit_gw_size
@@ -66,7 +66,7 @@ resource "aviatrix_transit_gateway" "main" {
 resource "aviatrix_vpc" "transit" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-transit"
+  name                 = "${local.name_prefix}-transit"
   region               = var.aws_region
   cidr                 = var.transit_cidr
   aviatrix_transit_vpc = true
@@ -79,7 +79,7 @@ resource "aviatrix_vpc" "transit" {
 resource "aviatrix_vpc" "prod" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-prod"
+  name                 = "${local.name_prefix}-prod"
   region               = var.aws_region
   cidr                 = var.prod_vpc_cidr
   aviatrix_firenet_vpc = false
@@ -88,7 +88,7 @@ resource "aviatrix_vpc" "prod" {
 resource "aviatrix_spoke_gateway" "prod" {
   cloud_type   = 1
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-prod-spoke"
+  gw_name      = "${local.name_prefix}-prod-spoke"
   vpc_id       = aviatrix_vpc.prod.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.spoke_gw_size
@@ -156,7 +156,7 @@ resource "aws_vpc_ipv4_cidr_block_association" "prod_pods" {
 resource "aviatrix_vpc" "nonprod" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-nonprod"
+  name                 = "${local.name_prefix}-nonprod"
   region               = var.aws_region
   cidr                 = var.nonprod_vpc_cidr
   aviatrix_firenet_vpc = false
@@ -165,7 +165,7 @@ resource "aviatrix_vpc" "nonprod" {
 resource "aviatrix_spoke_gateway" "nonprod" {
   cloud_type   = 1
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-nonprod-spoke"
+  gw_name      = "${local.name_prefix}-nonprod-spoke"
   vpc_id       = aviatrix_vpc.nonprod.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.spoke_gw_size
@@ -231,7 +231,7 @@ resource "aws_vpc_ipv4_cidr_block_association" "nonprod_pods" {
 resource "aviatrix_vpc" "db" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-prod-db"
+  name                 = "${local.name_prefix}-prod-db"
   region               = var.aws_region
   cidr                 = var.db_spoke_cidr
   aviatrix_firenet_vpc = false
@@ -240,7 +240,7 @@ resource "aviatrix_vpc" "db" {
 resource "aviatrix_spoke_gateway" "db" {
   cloud_type   = 1
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-db-spoke"
+  gw_name      = "${local.name_prefix}-db-spoke"
   vpc_id       = aviatrix_vpc.db.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.db_spoke_gw_size
@@ -280,5 +280,6 @@ resource "aws_route53_zone" "private" {
 }
 
 locals {
+  name_prefix = var.name_suffix != "" ? "${var.environment_prefix}-${var.name_suffix}" : var.environment_prefix
   dns_zone_id = var.route53_zone_id != "" ? var.route53_zone_id : aws_route53_zone.private[0].zone_id
 }

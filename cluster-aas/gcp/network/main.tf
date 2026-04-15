@@ -59,22 +59,23 @@ provider "google" {
 }
 
 locals {
+  name_prefix   = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
   pod_cidr      = var.pod_cidr
   services_cidr = var.services_cidr
 
   teams = {
     team-a = {
-      name         = "${var.name_prefix}-team-a"
+      name         = "${local.name_prefix}-team-a"
       primary_cidr = var.team_a_vpc_cidr
       master_cidr  = var.team_a_master_cidr
     }
     team-b = {
-      name         = "${var.name_prefix}-team-b"
+      name         = "${local.name_prefix}-team-b"
       primary_cidr = var.team_b_vpc_cidr
       master_cidr  = var.team_b_master_cidr
     }
     team-c = {
-      name         = "${var.name_prefix}-team-c"
+      name         = "${local.name_prefix}-team-c"
       primary_cidr = var.team_c_vpc_cidr
       master_cidr  = var.team_c_master_cidr
     }
@@ -89,7 +90,7 @@ module "gcp_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
   version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "GCP"
   account = var.aviatrix_gcp_account_name
   region  = var.gcp_region
@@ -131,7 +132,7 @@ module "team_a_spoke" {
   version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-team-a-spoke"
+  name       = "${local.name_prefix}-team-a-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name
@@ -205,7 +206,7 @@ module "team_b_spoke" {
   version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-team-b-spoke"
+  name       = "${local.name_prefix}-team-b-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name
@@ -276,7 +277,7 @@ module "team_c_spoke" {
   version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-team-c-spoke"
+  name       = "${local.name_prefix}-team-c-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name
@@ -334,7 +335,7 @@ module "spoke_db" {
   version = "~> 8.2.0"
 
   cloud          = "GCP"
-  name           = "${var.name_prefix}-db-spoke"
+  name           = "${local.name_prefix}-db-spoke"
   cidr           = var.db_vpc_cidr
   account        = var.aviatrix_gcp_account_name
   region         = var.gcp_region

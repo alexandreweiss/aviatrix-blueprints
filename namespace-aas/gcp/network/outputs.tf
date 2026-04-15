@@ -117,5 +117,5 @@ output "master_ipv4_cidr_block" {
 
 output "name_prefix" {
   description = "Name prefix used for all resources"
-  value       = var.name_prefix
+  value       = local.name_prefix
 }

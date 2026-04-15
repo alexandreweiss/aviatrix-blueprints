@@ -175,22 +175,22 @@ output "private_dns_zone_name" {
 
 output "name_prefix" {
   description = "Name prefix used for all resources"
-  value       = var.name_prefix
+  value       = local.name_prefix
 }
 
 output "team_a_cluster_name" {
   description = "Team-A EKS cluster name"
-  value       = "${var.name_prefix}-team-a"
+  value       = "${local.name_prefix}-team-a"
 }
 
 output "team_b_cluster_name" {
   description = "Team-B EKS cluster name"
-  value       = "${var.name_prefix}-team-b"
+  value       = "${local.name_prefix}-team-b"
 }
 
 output "team_c_cluster_name" {
   description = "Team-C EKS cluster name"
-  value       = "${var.name_prefix}-team-c"
+  value       = "${local.name_prefix}-team-c"
 }
 
 #####################
