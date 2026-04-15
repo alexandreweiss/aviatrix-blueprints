@@ -53,7 +53,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_vpc" {
-  name = "caas-aws-sg-team-a-vpc"
+  name = "${local.name_prefix}-sg-team-a-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -63,7 +63,7 @@ resource "aviatrix_smart_group" "team_a_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_b_vpc" {
-  name = "caas-aws-sg-team-b-vpc"
+  name = "${local.name_prefix}-sg-team-b-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -73,7 +73,7 @@ resource "aviatrix_smart_group" "team_b_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_c_vpc" {
-  name = "caas-aws-sg-team-c-vpc"
+  name = "${local.name_prefix}-sg-team-c-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -83,7 +83,7 @@ resource "aviatrix_smart_group" "team_c_vpc" {
 }
 
 resource "aviatrix_smart_group" "db_vpc" {
-  name = "caas-aws-sg-db-vpc"
+  name = "${local.name_prefix}-sg-db-vpc"
   selector {
     match_expressions {
       type = "vpc"
@@ -94,7 +94,7 @@ resource "aviatrix_smart_group" "db_vpc" {
 
 # Aggregate SmartGroup for all EKS clusters (egress rules)
 resource "aviatrix_smart_group" "all_eks_clusters" {
-  name = "caas-aws-sg-all-eks-clusters"
+  name = "${local.name_prefix}-sg-all-eks-clusters"
   selector {
     match_expressions {
       type = "vpc"
@@ -120,7 +120,7 @@ resource "aviatrix_smart_group" "all_eks_clusters" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_service" {
-  name = "caas-aws-sg-team-a-svc"
+  name = "${local.name_prefix}-sg-team-a-svc"
   selector {
     match_expressions {
       fqdn = "team-a.${var.private_dns_zone_name}"
@@ -129,7 +129,7 @@ resource "aviatrix_smart_group" "team_a_service" {
 }
 
 resource "aviatrix_smart_group" "team_b_service" {
-  name = "caas-aws-sg-team-b-svc"
+  name = "${local.name_prefix}-sg-team-b-svc"
   selector {
     match_expressions {
       fqdn = "team-b.${var.private_dns_zone_name}"
@@ -138,7 +138,7 @@ resource "aviatrix_smart_group" "team_b_service" {
 }
 
 resource "aviatrix_smart_group" "team_c_service" {
-  name = "caas-aws-sg-team-c-svc"
+  name = "${local.name_prefix}-sg-team-c-svc"
   selector {
     match_expressions {
       fqdn = "team-c.${var.private_dns_zone_name}"
@@ -147,7 +147,7 @@ resource "aviatrix_smart_group" "team_c_service" {
 }
 
 resource "aviatrix_smart_group" "database" {
-  name = "caas-aws-sg-database"
+  name = "${local.name_prefix}-sg-database"
   selector {
     match_expressions {
       fqdn = "db.${var.private_dns_zone_name}"
@@ -160,7 +160,7 @@ resource "aviatrix_smart_group" "database" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "caas-aws-sg-geo-blocked"
+  name = "${local.name_prefix}-sg-geo-blocked"
   selector {
     match_expressions {
       external = "geo"
@@ -184,7 +184,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "caas-aws-sg-threat-intel"
+  name = "${local.name_prefix}-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -217,7 +217,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "eks_required" {
-  name = "caas-aws-wg-eks-required"
+  name = "${local.name_prefix}-wg-eks-required"
   selector {
     # ECR (Elastic Container Registry)
     match_expressions {
@@ -289,7 +289,7 @@ resource "aviatrix_web_group" "eks_required" {
 }
 
 resource "aviatrix_web_group" "kubernetes_io" {
-  name = "caas-aws-wg-kubernetes-io"
+  name = "${local.name_prefix}-wg-kubernetes-io"
   selector {
     match_expressions {
       snifilter = "kubernetes.io"
@@ -298,7 +298,7 @@ resource "aviatrix_web_group" "kubernetes_io" {
 }
 
 resource "aviatrix_web_group" "github_aviatrix" {
-  name = "caas-aws-wg-github-aviatrix"
+  name = "${local.name_prefix}-wg-github-aviatrix"
   selector {
     match_expressions {
       urlfilter = "github.com/AviatrixSystems/terraform-provider-aviatrix"
@@ -319,7 +319,7 @@ resource "aviatrix_web_group" "github_aviatrix" {
 
 resource "aviatrix_dcf_ruleset" "caas" {
   depends_on = [time_sleep.wait_for_dcf]
-  name       = "caas-aws"
+  name       = "${local.name_prefix}-caas"
   attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
 
   #############################

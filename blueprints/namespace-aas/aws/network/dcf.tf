@@ -43,7 +43,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_ns" {
-  name = "naas-aws-team-a-ns"
+  name = "${local.name_prefix}-team-a-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -54,7 +54,7 @@ resource "aviatrix_smart_group" "team_a_ns" {
 }
 
 resource "aviatrix_smart_group" "team_b_ns" {
-  name = "naas-aws-team-b-ns"
+  name = "${local.name_prefix}-team-b-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -65,7 +65,7 @@ resource "aviatrix_smart_group" "team_b_ns" {
 }
 
 resource "aviatrix_smart_group" "team_c_ns" {
-  name = "naas-aws-team-c-ns"
+  name = "${local.name_prefix}-team-c-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -76,7 +76,7 @@ resource "aviatrix_smart_group" "team_c_ns" {
 }
 
 resource "aviatrix_smart_group" "monitoring_ns" {
-  name = "naas-aws-monitoring-ns"
+  name = "${local.name_prefix}-monitoring-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -87,7 +87,7 @@ resource "aviatrix_smart_group" "monitoring_ns" {
 }
 
 resource "aviatrix_smart_group" "all_namespaces" {
-  name = "naas-aws-all-team-namespaces"
+  name = "${local.name_prefix}-all-team-namespaces"
   selector {
     match_expressions {
       type           = "k8s"
@@ -112,7 +112,7 @@ resource "aviatrix_smart_group" "all_namespaces" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "naas-aws-sg-geo-blocked"
+  name = "${local.name_prefix}-sg-geo-blocked"
   selector {
     dynamic "match_expressions" {
       for_each = var.geo_block_countries
@@ -127,7 +127,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "naas-aws-sg-threat-intel"
+  name = "${local.name_prefix}-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -158,7 +158,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "eks_required" {
-  name = "naas-aws-wg-eks-required"
+  name = "${local.name_prefix}-wg-eks-required"
   selector {
     # EKS control plane
     match_expressions {
@@ -197,7 +197,7 @@ resource "aviatrix_web_group" "eks_required" {
 }
 
 resource "aviatrix_web_group" "approved_egress" {
-  name = "naas-aws-wg-approved-egress"
+  name = "${local.name_prefix}-wg-approved-egress"
   selector {
     dynamic "match_expressions" {
       for_each = var.approved_web_domains
@@ -227,7 +227,7 @@ data "aviatrix_dcf_attachment_point" "tf_before_ui" {
 resource "aviatrix_dcf_ruleset" "namespace_isolation" {
   depends_on = [time_sleep.wait_for_dcf]
 
-  name      = "naas-namespace-isolation"
+  name      = "${local.name_prefix}-namespace-isolation"
   attach_to = "defa11a1-3000-4001-0000-000000000000"
 
   #############################

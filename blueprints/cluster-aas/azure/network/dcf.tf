@@ -43,7 +43,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_vpc" {
-  name = "caas-azure-sg-team-a-vnet"
+  name = "${local.name_prefix}-sg-team-a-vnet"
   selector {
     match_expressions {
       type = "vpc"
@@ -53,7 +53,7 @@ resource "aviatrix_smart_group" "team_a_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_b_vpc" {
-  name = "caas-azure-sg-team-b-vnet"
+  name = "${local.name_prefix}-sg-team-b-vnet"
   selector {
     match_expressions {
       type = "vpc"
@@ -63,7 +63,7 @@ resource "aviatrix_smart_group" "team_b_vpc" {
 }
 
 resource "aviatrix_smart_group" "team_c_vpc" {
-  name = "caas-azure-sg-team-c-vnet"
+  name = "${local.name_prefix}-sg-team-c-vnet"
   selector {
     match_expressions {
       type = "vpc"
@@ -73,18 +73,18 @@ resource "aviatrix_smart_group" "team_c_vpc" {
 }
 
 resource "aviatrix_smart_group" "db_vpc" {
-  name = "caas-azure-sg-db-vnet"
+  name = "${local.name_prefix}-sg-db-vnet"
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-db-spoke"
+      name = "${local.name_prefix}-db-spoke"
     }
   }
 }
 
 # Aggregate SmartGroup for all AKS clusters (egress rules)
 resource "aviatrix_smart_group" "all_aks_clusters" {
-  name = "caas-azure-sg-all-aks-clusters"
+  name = "${local.name_prefix}-sg-all-aks-clusters"
   selector {
     match_expressions {
       type = "vpc"
@@ -106,7 +106,7 @@ resource "aviatrix_smart_group" "all_aks_clusters" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_service" {
-  name = "caas-azure-sg-team-a-svc"
+  name = "${local.name_prefix}-sg-team-a-svc"
   selector {
     match_expressions {
       fqdn = "team-a.${var.private_dns_zone_name}"
@@ -115,7 +115,7 @@ resource "aviatrix_smart_group" "team_a_service" {
 }
 
 resource "aviatrix_smart_group" "team_b_service" {
-  name = "caas-azure-sg-team-b-svc"
+  name = "${local.name_prefix}-sg-team-b-svc"
   selector {
     match_expressions {
       fqdn = "team-b.${var.private_dns_zone_name}"
@@ -124,7 +124,7 @@ resource "aviatrix_smart_group" "team_b_service" {
 }
 
 resource "aviatrix_smart_group" "team_c_service" {
-  name = "caas-azure-sg-team-c-svc"
+  name = "${local.name_prefix}-sg-team-c-svc"
   selector {
     match_expressions {
       fqdn = "team-c.${var.private_dns_zone_name}"
@@ -133,7 +133,7 @@ resource "aviatrix_smart_group" "team_c_service" {
 }
 
 resource "aviatrix_smart_group" "database" {
-  name = "caas-azure-sg-database"
+  name = "${local.name_prefix}-sg-database"
   selector {
     match_expressions {
       fqdn = "db.${var.private_dns_zone_name}"
@@ -146,7 +146,7 @@ resource "aviatrix_smart_group" "database" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "caas-azure-sg-geo-blocked"
+  name = "${local.name_prefix}-sg-geo-blocked"
   selector {
     match_expressions {
       external = "geo"
@@ -170,7 +170,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "caas-azure-sg-threat-intel"
+  name = "${local.name_prefix}-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -200,7 +200,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "aks_required" {
-  name = "caas-azure-wg-aks-required"
+  name = "${local.name_prefix}-wg-aks-required"
   selector {
     match_expressions { snifilter = "mcr.microsoft.com" }
     match_expressions { snifilter = "*.data.mcr.microsoft.com" }
@@ -229,14 +229,14 @@ resource "aviatrix_web_group" "aks_required" {
 }
 
 resource "aviatrix_web_group" "kubernetes_io" {
-  name = "caas-azure-wg-kubernetes-io"
+  name = "${local.name_prefix}-wg-kubernetes-io"
   selector {
     match_expressions { snifilter = "kubernetes.io" }
   }
 }
 
 resource "aviatrix_web_group" "github_aviatrix" {
-  name = "caas-azure-wg-github-aviatrix"
+  name = "${local.name_prefix}-wg-github-aviatrix"
   selector {
     match_expressions { urlfilter = "github.com/AviatrixSystems/terraform-provider-aviatrix" }
     match_expressions { urlfilter = "github.com/AviatrixSystems/avxlabs-docs" }
@@ -253,7 +253,7 @@ data "aviatrix_dcf_attachment_point" "tf_before_ui" {
 
 resource "aviatrix_dcf_ruleset" "caas" {
   depends_on = [time_sleep.wait_for_dcf]
-  name       = "caas-azure"
+  name       = "${local.name_prefix}-caas"
   attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
 
   #############################
