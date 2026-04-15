@@ -320,7 +320,7 @@ resource "aviatrix_web_group" "github_aviatrix" {
 resource "aviatrix_dcf_ruleset" "caas" {
   depends_on = [time_sleep.wait_for_dcf]
   name       = "caas-aws"
-  attach_to  = "defa11a1-3000-4001-0000-000000000000"
+  attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
 
   #############################
   # THREAT PREVENTION (Priority 0-1)

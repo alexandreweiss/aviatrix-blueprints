@@ -231,7 +231,7 @@ data "aviatrix_dcf_attachment_point" "tf_before_ui" {
 resource "aviatrix_dcf_ruleset" "caas" {
   depends_on = [time_sleep.wait_for_dcf]
   name       = "caas-gcp"
-  attach_to  = "defa11a1-3000-4001-0000-000000000000"
+  attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
 
   #############################
   # THREAT PREVENTION (Priority 0-1)
