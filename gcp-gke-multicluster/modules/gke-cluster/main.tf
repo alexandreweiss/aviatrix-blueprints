@@ -225,14 +225,14 @@ resource "google_service_account_iam_member" "gateway_controller_wi" {
 # Register the GKE cluster with Aviatrix Controller for Smart Groups
 # This allows the controller to build workload-based security policies
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  count = var.enable_aviatrix_onboarding ? 1 : 0
-
-  cluster_id          = google_container_cluster.this.id
-  use_csp_credentials = true
-
-  depends_on = [google_container_cluster.this]
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   count = var.enable_aviatrix_onboarding ? 1 : 0
+# 
+#   cluster_id          = google_container_cluster.this.id
+#   use_csp_credentials = true
+# 
+#   depends_on = [google_container_cluster.this]
+# }
 
 # ClusterRole for viewing nodes (required by Aviatrix for Smart Groups)
 # GKE's default view ClusterRole doesn't include nodes

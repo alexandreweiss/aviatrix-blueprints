@@ -86,10 +86,10 @@ module "team_a_gke" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.team_a_gke.cluster_id
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.team_a_gke.cluster_id
+#   use_csp_credentials = true
+# }
 
 #####################
 # Outputs
