@@ -133,7 +133,7 @@ module "frontend_spoke" {
 
   # Use existing VNet created by aks-vnet module
   use_existing_vpc    = true
-  vpc_id              = "${module.frontend_vnet.vnet_name}:${module.frontend_vnet.resource_group_name}:${module.frontend_vnet.vnet_id}"
+  vpc_id              = "${module.frontend_vnet.vnet_name}:${module.frontend_vnet.resource_group_name}:${module.frontend_vnet.vnet_guid}"
   gw_subnet           = module.frontend_vnet.avx_gateway_subnet_cidr
   hagw_subnet         = module.frontend_vnet.avx_gateway_subnet_cidr
 }
@@ -225,7 +225,7 @@ module "backend_spoke" {
 
   # Use existing VNet created by aks-vnet module
   use_existing_vpc    = true
-  vpc_id              = "${module.backend_vnet.vnet_name}:${module.backend_vnet.resource_group_name}:${module.backend_vnet.vnet_id}"
+  vpc_id              = "${module.backend_vnet.vnet_name}:${module.backend_vnet.resource_group_name}:${module.backend_vnet.vnet_guid}"
   gw_subnet           = module.backend_vnet.avx_gateway_subnet_cidr
   hagw_subnet         = module.backend_vnet.avx_gateway_subnet_cidr
 }

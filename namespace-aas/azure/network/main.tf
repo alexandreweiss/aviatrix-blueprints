@@ -129,7 +129,7 @@ module "shared_spoke" {
 
   # Use existing VNet created by aks-vnet module
   use_existing_vpc = true
-  vpc_id           = "${module.shared_vnet.vnet_name}:${module.shared_vnet.resource_group_name}:${module.shared_vnet.vnet_id}"
+  vpc_id           = "${module.shared_vnet.vnet_name}:${module.shared_vnet.resource_group_name}:${module.shared_vnet.vnet_guid}"
   gw_subnet        = module.shared_vnet.avx_gateway_subnet_cidr
   hagw_subnet      = module.shared_vnet.avx_gateway_subnet_cidr
 }

@@ -146,7 +146,7 @@ module "team_a_spoke" {
   # Use existing VNet created by aks-vnet module
   # Format: "vnet_name:resource_group_name:arm_vnet_id"
   use_existing_vpc = true
-  vpc_id           = "${module.team_a_vnet.vnet_name}:${module.team_a_vnet.resource_group_name}:${module.team_a_vnet.vnet_id}"
+  vpc_id           = "${module.team_a_vnet.vnet_name}:${module.team_a_vnet.resource_group_name}:${module.team_a_vnet.vnet_guid}"
   gw_subnet        = module.team_a_vnet.avx_gateway_subnet_cidr
   hagw_subnet      = module.team_a_vnet.avx_gateway_subnet_cidr
 }
@@ -222,7 +222,7 @@ module "team_b_spoke" {
   enable_vpc_dns_server = true
 
   use_existing_vpc = true
-  vpc_id           = "${module.team_b_vnet.vnet_name}:${module.team_b_vnet.resource_group_name}:${module.team_b_vnet.vnet_id}"
+  vpc_id           = "${module.team_b_vnet.vnet_name}:${module.team_b_vnet.resource_group_name}:${module.team_b_vnet.vnet_guid}"
   gw_subnet        = module.team_b_vnet.avx_gateway_subnet_cidr
   hagw_subnet      = module.team_b_vnet.avx_gateway_subnet_cidr
 }
@@ -297,7 +297,7 @@ module "team_c_spoke" {
   enable_vpc_dns_server = true
 
   use_existing_vpc = true
-  vpc_id           = "${module.team_c_vnet.vnet_name}:${module.team_c_vnet.resource_group_name}:${module.team_c_vnet.vnet_id}"
+  vpc_id           = "${module.team_c_vnet.vnet_name}:${module.team_c_vnet.resource_group_name}:${module.team_c_vnet.vnet_guid}"
   gw_subnet        = module.team_c_vnet.avx_gateway_subnet_cidr
   hagw_subnet      = module.team_c_vnet.avx_gateway_subnet_cidr
 }
