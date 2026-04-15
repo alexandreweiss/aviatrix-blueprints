@@ -42,3 +42,7 @@ Thumbs.db
 credentials.json
 service-account*.json
 prod-nonprod-hybrid/gcp/network/tfplan
+tfplan
+*.tfstate
+*.tfstate.backup
+.terraform/
