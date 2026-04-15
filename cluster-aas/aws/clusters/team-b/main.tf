@@ -15,7 +15,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -54,9 +54,6 @@ module "team_b_eks" {
   enable_irsa = true
 
   cluster_addons = {
-    coredns = {
-      most_recent = true
-    }
     kube-proxy = {
       most_recent = true
     }
@@ -85,10 +82,10 @@ module "team_b_eks" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.team_b_eks.cluster_arn
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.team_b_eks.cluster_arn
+#   use_csp_credentials = true
+# }
 
 #####################
 # IRSA - ALB Controller

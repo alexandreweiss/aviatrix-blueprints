@@ -27,7 +27,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -50,7 +50,8 @@ provider "azurerm" {
 }
 
 locals {
-  pod_cidr = var.pod_cidr
+  name_prefix = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
+  pod_cidr    = var.pod_cidr
 }
 
 #####################
@@ -59,9 +60,9 @@ locals {
 
 module "azure_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "Azure"
   account = var.aviatrix_azure_account_name
   region  = var.azure_region
@@ -94,7 +95,7 @@ module "azure_transit" {
 module "shared_vnet" {
   source = "../../../azure-aks-multicluster/network/modules/aks-vnet"
 
-  name      = "${var.name_prefix}-shared-vnet"
+  name      = "${local.name_prefix}-shared-vnet"
   location  = var.azure_region
   vnet_cidr = var.shared_vnet_cidr
   pod_cidr  = local.pod_cidr
@@ -112,10 +113,10 @@ module "shared_vnet" {
 
 module "shared_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "Azure"
-  name       = "${var.name_prefix}-shared-spoke"
+  name       = "${local.name_prefix}-shared-spoke"
   account    = var.aviatrix_azure_account_name
   region     = var.azure_region
   transit_gw = module.azure_transit.transit_gateway.gw_name
@@ -128,7 +129,7 @@ module "shared_spoke" {
 
   # Use existing VNet created by aks-vnet module
   use_existing_vpc = true
-  vpc_id           = "${module.shared_vnet.vnet_name}:${module.shared_vnet.resource_group_name}:${module.shared_vnet.vnet_id}"
+  vpc_id           = "${module.shared_vnet.vnet_name}:${module.shared_vnet.resource_group_name}:${module.shared_vnet.vnet_guid}"
   gw_subnet        = module.shared_vnet.avx_gateway_subnet_cidr
   hagw_subnet      = module.shared_vnet.avx_gateway_subnet_cidr
 }

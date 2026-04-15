@@ -51,7 +51,7 @@ resource "helm_release" "k8s_firewall" {
 }
 
 module "default_node_pool" {
-  source = "../../../gcp-gke-multicluster/modules/gke-node-pool"
+  source = "../../../../gcp-gke-multicluster/modules/gke-node-pool"
 
   cluster_name = data.terraform_remote_state.cluster.outputs.cluster_name
   project      = local.gcp_project

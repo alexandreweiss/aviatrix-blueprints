@@ -22,7 +22,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -66,9 +66,6 @@ module "shared_eks" {
 
   # Cluster addons
   cluster_addons = {
-    coredns = {
-      most_recent = true
-    }
     kube-proxy = {
       most_recent = true
     }
@@ -84,6 +81,8 @@ module "shared_eks" {
     }
   }
 
+  enable_cluster_creator_admin_permissions = true
+
   tags = {
     Environment = "prod"
     Pattern     = "namespace-aas"
@@ -95,7 +94,7 @@ module "shared_eks" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.shared_eks.cluster_arn
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.shared_eks.cluster_arn
+#   use_csp_credentials = true
+# }

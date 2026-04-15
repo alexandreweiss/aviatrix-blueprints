@@ -31,7 +31,7 @@ provider "aviatrix" {
 }
 
 module "gke_prod" {
-  source = "../../../gcp-gke-multicluster/modules/gke-cluster"
+  source = "../../../../gcp-gke-multicluster/modules/gke-cluster"
 
   cluster_name = "${var.environment_prefix}-prod"
   project_id   = var.gcp_project_id

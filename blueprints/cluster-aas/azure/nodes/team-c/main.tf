@@ -45,7 +45,7 @@ resource "helm_release" "k8s_firewall" {
 }
 
 module "default_node_pool" {
-  source = "../../../azure-aks-multicluster/modules/aks-node-group"
+  source = "../../../../azure-aks-multicluster/modules/aks-node-group"
 
   cluster_name        = data.terraform_remote_state.cluster.outputs.cluster_name
   resource_group_name = data.terraform_remote_state.network.outputs.team_c_resource_group_name

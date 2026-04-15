@@ -33,7 +33,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -205,13 +205,13 @@ resource "azurerm_federated_identity_credential" "ingress" {
 # This enables DCF policies to reference Kubernetes workloads.
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  count = var.enable_aviatrix_onboarding ? 1 : 0
-
-  name = var.cluster_name
-
-  # AKS authentication via kubeconfig
-  kube_config = azurerm_kubernetes_cluster.this.kube_config_raw
-
-  tags = var.tags
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   count = var.enable_aviatrix_onboarding ? 1 : 0
+# 
+#   name = var.cluster_name
+# 
+#   # AKS authentication via kubeconfig
+#   kube_config = azurerm_kubernetes_cluster.this.kube_config_raw
+# 
+#   tags = var.tags
+# }

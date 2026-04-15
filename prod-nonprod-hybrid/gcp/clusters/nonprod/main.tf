@@ -16,7 +16,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -31,7 +31,7 @@ provider "aviatrix" {
 }
 
 module "gke_nonprod" {
-  source = "../../../gcp-gke-multicluster/modules/gke-cluster"
+  source = "../../../../gcp-gke-multicluster/modules/gke-cluster"
 
   cluster_name = "${var.environment_prefix}-nonprod"
   project_id   = var.gcp_project_id
@@ -88,7 +88,7 @@ module "gke_nonprod" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.gke_nonprod.cluster_id
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.gke_nonprod.cluster_id
+#   use_csp_credentials = true
+# }

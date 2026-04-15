@@ -123,6 +123,7 @@ resource "aws_eks_node_group" "shared" {
     aws_iam_role_policy_attachment.node_group_AmazonEKSWorkerNodePolicy,
     aws_iam_role_policy_attachment.node_group_AmazonEKS_CNI_Policy,
     aws_iam_role_policy_attachment.node_group_AmazonEC2ContainerRegistryReadOnly,
+    kubernetes_manifest.eniconfig,
   ]
 }
 

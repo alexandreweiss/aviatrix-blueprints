@@ -72,7 +72,7 @@ variable "pod_cidr" {
 variable "environment_prefix" {
   description = "Prefix for all resource names"
   type        = string
-  default     = "patternc"
+  default     = "pc-azure"
 }
 
 variable "transit_gw_size" {
@@ -140,4 +140,16 @@ variable "teams" {
       nonprod_namespace = "team-b-staging"
     }
   }
+}
+
+variable "name_suffix" {
+  description = "Optional suffix appended to all resource names for uniqueness (e.g., 'ab12')"
+  type        = string
+  default     = ""
+}
+
+variable "disable_dcf_on_destroy" {
+  description = "Whether to disable DCF globally when this pattern is destroyed. Default false — DCF stays enabled."
+  type        = bool
+  default     = false
 }

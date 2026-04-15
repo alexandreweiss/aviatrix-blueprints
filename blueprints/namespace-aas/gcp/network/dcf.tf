@@ -15,6 +15,7 @@
 #####################
 
 resource "aviatrix_distributed_firewalling_config" "main" {
+  count                          = var.disable_dcf_on_destroy ? 1 : 0
   enable_distributed_firewalling = true
 }
 
@@ -40,7 +41,7 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_ns" {
-  name = "team-a-ns"
+  name = "${local.name_prefix}-team-a-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -51,7 +52,7 @@ resource "aviatrix_smart_group" "team_a_ns" {
 }
 
 resource "aviatrix_smart_group" "team_b_ns" {
-  name = "team-b-ns"
+  name = "${local.name_prefix}-team-b-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -62,7 +63,7 @@ resource "aviatrix_smart_group" "team_b_ns" {
 }
 
 resource "aviatrix_smart_group" "team_c_ns" {
-  name = "team-c-ns"
+  name = "${local.name_prefix}-team-c-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -73,7 +74,7 @@ resource "aviatrix_smart_group" "team_c_ns" {
 }
 
 resource "aviatrix_smart_group" "monitoring_ns" {
-  name = "monitoring-ns"
+  name = "${local.name_prefix}-monitoring-ns"
   selector {
     match_expressions {
       type           = "k8s"
@@ -84,7 +85,7 @@ resource "aviatrix_smart_group" "monitoring_ns" {
 }
 
 resource "aviatrix_smart_group" "all_namespaces" {
-  name = "all-team-namespaces"
+  name = "${local.name_prefix}-all-team-namespaces"
   selector {
     match_expressions {
       type           = "k8s"
@@ -109,7 +110,7 @@ resource "aviatrix_smart_group" "all_namespaces" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "sg-geo-blocked"
+  name = "${local.name_prefix}-sg-geo-blocked"
   selector {
     dynamic "match_expressions" {
       for_each = var.geo_block_countries
@@ -124,7 +125,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "sg-threat-intel"
+  name = "${local.name_prefix}-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -154,7 +155,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "gke_required" {
-  name = "wg-gke-required"
+  name = "${local.name_prefix}-wg-gke-required"
   selector {
     # GKE control plane and API
     match_expressions {
@@ -197,7 +198,7 @@ resource "aviatrix_web_group" "gke_required" {
 }
 
 resource "aviatrix_web_group" "approved_egress" {
-  name = "wg-approved-egress"
+  name = "${local.name_prefix}-wg-approved-egress"
   selector {
     dynamic "match_expressions" {
       for_each = var.approved_web_domains

@@ -139,7 +139,7 @@ output "dns_zone_dns_name" {
 #####################
 
 output "name_prefix" {
-  value = var.name_prefix
+  value = local.name_prefix
 }
 
 output "team_a_cluster_name" {

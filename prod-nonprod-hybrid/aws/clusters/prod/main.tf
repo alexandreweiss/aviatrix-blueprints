@@ -14,7 +14,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -91,11 +91,12 @@ module "eks_prod" {
   }
 }
 
-#####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.eks_prod.cluster_arn
-  use_csp_credentials = true
-}
+# #####################
+# # Aviatrix Kubernetes Cluster Onboarding
+# # Commented out — clusters already registered on controller from prior deploy.
+# # Uncomment for fresh deployments.
+# #####################
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.eks_prod.cluster_arn
+#   use_csp_credentials = true
+# }

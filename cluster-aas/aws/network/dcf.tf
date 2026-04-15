@@ -3,6 +3,7 @@
 #####################
 
 resource "aviatrix_distributed_firewalling_config" "main" {
+  count                          = var.disable_dcf_on_destroy ? 1 : 0
   enable_distributed_firewalling = true
 }
 
@@ -52,60 +53,60 @@ resource "time_sleep" "wait_for_dcf" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_vpc" {
-  name = "sg-team-a-vpc"
+  name = "${local.name_prefix}-sg-team-a-vpc"
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-a"
+      name = "${local.name_prefix}-team-a"
     }
   }
 }
 
 resource "aviatrix_smart_group" "team_b_vpc" {
-  name = "sg-team-b-vpc"
+  name = "${local.name_prefix}-sg-team-b-vpc"
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-b"
+      name = "${local.name_prefix}-team-b"
     }
   }
 }
 
 resource "aviatrix_smart_group" "team_c_vpc" {
-  name = "sg-team-c-vpc"
+  name = "${local.name_prefix}-sg-team-c-vpc"
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-c"
+      name = "${local.name_prefix}-team-c"
     }
   }
 }
 
 resource "aviatrix_smart_group" "db_vpc" {
-  name = "sg-db-vpc"
+  name = "${local.name_prefix}-sg-db-vpc"
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-db-spoke"
+      name = "${local.name_prefix}-db-spoke"
     }
   }
 }
 
 # Aggregate SmartGroup for all EKS clusters (egress rules)
 resource "aviatrix_smart_group" "all_eks_clusters" {
-  name = "sg-all-eks-clusters"
+  name = "${local.name_prefix}-sg-all-eks-clusters"
   selector {
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-a"
+      name = "${local.name_prefix}-team-a"
     }
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-b"
+      name = "${local.name_prefix}-team-b"
     }
     match_expressions {
       type = "vpc"
-      name = "${var.name_prefix}-team-c"
+      name = "${local.name_prefix}-team-c"
     }
   }
 }
@@ -119,7 +120,7 @@ resource "aviatrix_smart_group" "all_eks_clusters" {
 #####################
 
 resource "aviatrix_smart_group" "team_a_service" {
-  name = "sg-team-a-svc"
+  name = "${local.name_prefix}-sg-team-a-svc"
   selector {
     match_expressions {
       fqdn = "team-a.${var.private_dns_zone_name}"
@@ -128,7 +129,7 @@ resource "aviatrix_smart_group" "team_a_service" {
 }
 
 resource "aviatrix_smart_group" "team_b_service" {
-  name = "sg-team-b-svc"
+  name = "${local.name_prefix}-sg-team-b-svc"
   selector {
     match_expressions {
       fqdn = "team-b.${var.private_dns_zone_name}"
@@ -137,7 +138,7 @@ resource "aviatrix_smart_group" "team_b_service" {
 }
 
 resource "aviatrix_smart_group" "team_c_service" {
-  name = "sg-team-c-svc"
+  name = "${local.name_prefix}-sg-team-c-svc"
   selector {
     match_expressions {
       fqdn = "team-c.${var.private_dns_zone_name}"
@@ -146,7 +147,7 @@ resource "aviatrix_smart_group" "team_c_service" {
 }
 
 resource "aviatrix_smart_group" "database" {
-  name = "sg-database"
+  name = "${local.name_prefix}-sg-database"
   selector {
     match_expressions {
       fqdn = "db.${var.private_dns_zone_name}"
@@ -159,7 +160,7 @@ resource "aviatrix_smart_group" "database" {
 #####################
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "caas-sg-geo-blocked"
+  name = "${local.name_prefix}-sg-geo-blocked"
   selector {
     match_expressions {
       external = "geo"
@@ -183,7 +184,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "caas-sg-threat-intel"
+  name = "${local.name_prefix}-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -216,7 +217,7 @@ locals {
 #####################
 
 resource "aviatrix_web_group" "eks_required" {
-  name = "caas-wg-eks-required"
+  name = "${local.name_prefix}-wg-eks-required"
   selector {
     # ECR (Elastic Container Registry)
     match_expressions {
@@ -288,7 +289,7 @@ resource "aviatrix_web_group" "eks_required" {
 }
 
 resource "aviatrix_web_group" "kubernetes_io" {
-  name = "caas-wg-kubernetes-io"
+  name = "${local.name_prefix}-wg-kubernetes-io"
   selector {
     match_expressions {
       snifilter = "kubernetes.io"
@@ -297,7 +298,7 @@ resource "aviatrix_web_group" "kubernetes_io" {
 }
 
 resource "aviatrix_web_group" "github_aviatrix" {
-  name = "caas-wg-github-aviatrix"
+  name = "${local.name_prefix}-wg-github-aviatrix"
   selector {
     match_expressions {
       urlfilter = "github.com/AviatrixSystems/terraform-provider-aviatrix"
@@ -313,21 +314,19 @@ resource "aviatrix_web_group" "github_aviatrix" {
 #####################
 
 #####################
-# DCF Policy List
-#
-# Using aviatrix_distributed_firewalling_policy_list instead of aviatrix_dcf_ruleset
-# because only one dcf_ruleset can attach to the TERRAFORM_BEFORE_UI_MANAGED point.
-# policy_list uses a different mechanism and can coexist with other rulesets.
+# DCF Ruleset
 #####################
 
-resource "aviatrix_distributed_firewalling_policy_list" "caas" {
+resource "aviatrix_dcf_ruleset" "caas" {
   depends_on = [time_sleep.wait_for_dcf]
+  name       = "${local.name_prefix}-caas"
+  attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
 
   #############################
   # THREAT PREVENTION (Priority 0-1)
   #############################
 
-  policies {
+  rules {
     name             = "caas-block-geo"
     action           = "DENY"
     priority         = 100
@@ -337,7 +336,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.geo_blocked.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-block-threat"
     action           = "DENY"
     priority         = 101
@@ -356,7 +355,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
   # - Use Hostname SmartGroups for service destinations
   #############################
 
-  policies {
+  rules {
     name             = "caas-team-a-to-team-b-api"
     action           = "PERMIT"
     priority         = 110
@@ -366,11 +365,10 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_b_service.uuid]
     port_ranges {
       lo = 443
-      hi = 443
     }
   }
 
-  policies {
+  rules {
     name             = "caas-team-b-to-team-a-api"
     action           = "PERMIT"
     priority         = 111
@@ -380,7 +378,6 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_a_service.uuid]
     port_ranges {
       lo = 8080
-      hi = 8080
     }
   }
 
@@ -389,7 +386,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
   # CRITICAL: Always deny BOTH directions explicitly.
   #############################
 
-  policies {
+  rules {
     name             = "caas-deny-a-to-c"
     action           = "DENY"
     priority         = 120
@@ -399,7 +396,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_c_vpc.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-deny-c-to-a"
     action           = "DENY"
     priority         = 121
@@ -409,7 +406,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_a_vpc.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-deny-b-to-c"
     action           = "DENY"
     priority         = 122
@@ -419,7 +416,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
     dst_smart_groups = [aviatrix_smart_group.team_c_vpc.uuid]
   }
 
-  policies {
+  rules {
     name             = "caas-deny-c-to-b"
     action           = "DENY"
     priority         = 123
@@ -433,19 +430,17 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
   # EGRESS - EKS Required (Priority 150)
   #############################
 
-  policies {
-    name                 = "caas-egress-eks-required"
-    action               = "PERMIT"
-    priority             = 150
-    protocol             = "TCP"
-    logging              = true
-    src_smart_groups     = [aviatrix_smart_group.all_eks_clusters.uuid]
-    dst_smart_groups     = [local.public_internet_uuid]
-    web_groups           = [aviatrix_web_group.eks_required.uuid]
-    flow_app_requirement = "APP_UNSPECIFIED"
+  rules {
+    name             = "caas-egress-eks-required"
+    action           = "PERMIT"
+    priority         = 150
+    protocol         = "TCP"
+    logging          = true
+    src_smart_groups = [aviatrix_smart_group.all_eks_clusters.uuid]
+    dst_smart_groups = [local.public_internet_uuid]
+    web_groups       = [aviatrix_web_group.eks_required.uuid]
     port_ranges {
       lo = 443
-      hi = 443
     }
   }
 
@@ -461,7 +456,7 @@ resource "aviatrix_distributed_firewalling_policy_list" "caas" {
 
 output "dcf_ruleset_uuid" {
   description = "UUID of the DCF ruleset"
-  value       = aviatrix_distributed_firewalling_policy_list.caas.id
+  value       = aviatrix_dcf_ruleset.caas.id
 }
 
 output "smartgroup_team_a_vpc_uuid" {

@@ -20,7 +20,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -62,7 +62,7 @@ provider "kubernetes" {
 #####################
 
 module "team_a_aks" {
-  source = "../../../azure-aks-multicluster/modules/aks-cluster"
+  source = "../../../../azure-aks-multicluster/modules/aks-cluster"
 
   cluster_name        = data.terraform_remote_state.network.outputs.team_a_cluster_name
   resource_group_name = data.terraform_remote_state.network.outputs.team_a_resource_group_name
@@ -90,10 +90,10 @@ module "team_a_aks" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.team_a_aks.cluster_id
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.team_a_aks.cluster_id
+#   use_csp_credentials = true
+# }
 
 #####################
 # Outputs

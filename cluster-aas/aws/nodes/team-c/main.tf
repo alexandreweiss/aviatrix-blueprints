@@ -67,6 +67,8 @@ resource "aws_eks_node_group" "default" {
   node_role_arn   = aws_iam_role.node_group.arn
   subnet_ids      = data.terraform_remote_state.network.outputs.team_c_private_subnet_ids
 
+  depends_on = [kubernetes_manifest.eniconfig_a, kubernetes_manifest.eniconfig_b]
+
   scaling_config {
     min_size     = var.node_group_config.min_size
     max_size     = var.node_group_config.max_size
@@ -140,7 +142,6 @@ resource "kubernetes_manifest" "eniconfig_a" {
     }
   }
 
-  depends_on = [aws_eks_node_group.default]
 }
 
 resource "kubernetes_manifest" "eniconfig_b" {
@@ -155,5 +156,4 @@ resource "kubernetes_manifest" "eniconfig_b" {
     }
   }
 
-  depends_on = [aws_eks_node_group.default]
 }

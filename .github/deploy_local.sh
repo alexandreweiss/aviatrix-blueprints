@@ -45,6 +45,30 @@ fi
 
 BASE_DIR="${REPO_ROOT}/${PATTERN}/${CSP}"
 
+# ── Prerequisite checks ──
+check_tool() {
+  if ! command -v "$1" &>/dev/null; then
+    err "Required tool not found: $1"
+    return 1
+  fi
+}
+
+prereq_ok=0
+check_tool terraform || prereq_ok=1
+check_tool kubectl   || prereq_ok=1
+
+case "$CSP" in
+  aws*)  check_tool aws   || prereq_ok=1 ;;
+  azure) check_tool az    || prereq_ok=1 ;;
+  gcp)   check_tool gcloud || prereq_ok=1 ;;
+esac
+
+if [ "$prereq_ok" -ne 0 ]; then
+  err "Missing prerequisites — install the tools listed above and retry."
+  exit 1
+fi
+ok "All prerequisite tools found"
+
 # ── Compute matrix targets ──
 case "$PATTERN" in
   cluster-aas)         TARGETS=(team-a team-b team-c) ;;
@@ -73,14 +97,33 @@ tf_run() {
 
   terraform -chdir="$dir" init -input=false -no-color
 
+  local logfile
+  logfile="$(mktemp)"
+
   case "$action" in
     plan)
       terraform -chdir="$dir" plan -no-color
       ;;
     apply)
+      local exit_code=0
       terraform -chdir="$dir" plan -no-color -out=tfplan
-      terraform -chdir="$dir" apply -auto-approve tfplan
+      terraform -chdir="$dir" apply -auto-approve tfplan 2>&1 | tee "$logfile" || exit_code=$?
       rm -f "${dir}/tfplan"
+
+      if [ "$exit_code" -ne 0 ]; then
+        # Check if the failure is an "already exists" error that may resolve on retry
+        if grep -q 'already exists\|AVXERR-SMARTGROUP-0004\|AVXERR-TOOLS-0031\|alreadyExists' "$logfile"; then
+          warn "${label}: resources already exist — retrying apply to converge state..."
+          terraform -chdir="$dir" apply -auto-approve -no-color
+          exit_code=$?
+        fi
+      fi
+
+      rm -f "$logfile"
+      if [ "$exit_code" -ne 0 ]; then
+        err "${label} apply failed"
+        return "$exit_code"
+      fi
       ;;
     destroy)
       terraform -chdir="$dir" destroy -auto-approve -no-color
@@ -143,11 +186,28 @@ run_deploy() {
     local crds_dir="${BASE_DIR}/k8s-apps/dcf-crd"
     if [ -d "$crds_dir" ]; then
       header "Layer 4: CRDs"
+
+      # Refresh kubeconfig for each target cluster before applying CRDs
+      local region="${AWS_DEFAULT_REGION:-us-east-2}"
+      for target in "${TARGETS[@]}"; do
+        local cluster_dir="${BASE_DIR}/clusters/${target}"
+        if [ -d "$cluster_dir" ] && [ -f "$cluster_dir/terraform.tfstate" ]; then
+          local cluster_name
+          cluster_name=$(terraform -chdir="$cluster_dir" output -raw cluster_name 2>/dev/null || echo "")
+          if [ -n "$cluster_name" ]; then
+            info "Updating kubeconfig for ${cluster_name}..."
+            aws eks update-kubeconfig --name "$cluster_name" --region "$region" --alias "$cluster_name" 2>/dev/null \
+              && ok "kubeconfig updated for ${cluster_name}" \
+              || warn "Could not update kubeconfig for ${cluster_name}"
+          fi
+        fi
+      done
+
       info "Applying Kubernetes manifests from ${crds_dir}..."
       for f in "${crds_dir}"/*.yaml; do
         [ -f "$f" ] || continue
         info "kubectl apply -f $(basename "$f")"
-        kubectl apply -f "$f"
+        kubectl apply -f "$f" --validate=false
         ok "Applied $(basename "$f")"
       done
     else

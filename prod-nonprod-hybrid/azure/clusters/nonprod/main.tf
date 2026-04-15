@@ -14,7 +14,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -28,7 +28,7 @@ provider "aviatrix" {
 }
 
 module "aks_nonprod" {
-  source = "../../../azure-aks-multicluster/modules/aks-cluster"
+  source = "../../../../azure-aks-multicluster/modules/aks-cluster"
 
   cluster_name        = "${var.environment_prefix}-nonprod"
   resource_group_name = var.resource_group_name
@@ -72,7 +72,7 @@ module "aks_nonprod" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.aks_nonprod.cluster_id
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.aks_nonprod.cluster_id
+#   use_csp_credentials = true
+# }

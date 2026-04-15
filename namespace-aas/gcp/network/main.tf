@@ -27,7 +27,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     google = {
       source  = "hashicorp/google"
@@ -50,6 +50,7 @@ provider "google" {
 }
 
 locals {
+  name_prefix   = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
   pod_cidr      = var.pod_cidr
   services_cidr = var.services_cidr
 }
@@ -60,24 +61,22 @@ locals {
 
 module "gcp_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "GCP"
   account = var.aviatrix_gcp_account_name
   region  = var.gcp_region
   cidr    = var.transit_cidr
   ha_gw   = false
 
-  # Enable Transit FireNet for future NGFW integration
-  enable_transit_firenet        = true
+  enable_transit_firenet        = false
   enable_egress_transit_firenet = false
 
   instance_size     = "n1-standard-2"
   connected_transit = true
 
   # Use VPC DNS server for gateway management — required for hostname SmartGroups
-  enable_vpc_dns_server = true
 
   # CRITICAL: Exclude non-routable pod CIDR from BGP advertisements
   # This allows spokes with the same secondary range (100.64.0.0/16)
@@ -95,7 +94,7 @@ module "gcp_transit" {
 module "shared_vpc" {
   source = "../../../gcp-gke-multicluster/network/modules/gke-vpc"
 
-  name    = "${var.name_prefix}-shared"
+  name    = "${local.name_prefix}-shared"
   project = var.gcp_project
   region  = var.gcp_region
 
@@ -111,10 +110,10 @@ module "shared_vpc" {
 
 module "shared_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-shared-spoke"
+  name       = "${local.name_prefix}-shared-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name
@@ -123,7 +122,6 @@ module "shared_spoke" {
   ha_gw         = false
 
   # Use VPC DNS server for gateway management — required for hostname SmartGroups
-  enable_vpc_dns_server = true
 
   # Use existing VPC created by gke-vpc module
   use_existing_vpc = true
@@ -198,7 +196,7 @@ resource "google_dns_managed_zone" "private" {
     # Associate with transit VPC
     # DNS network_url needs GCP self-link, not Aviatrix format
     networks {
-      network_url = "projects/${var.gcp_project}/global/networks/${split("~~", module.gcp_transit.vpc.vpc_id)[0]}"
+      network_url = "projects/${var.gcp_project}/global/networks/${split("~-~", module.gcp_transit.vpc.vpc_id)[0]}"
     }
   }
 

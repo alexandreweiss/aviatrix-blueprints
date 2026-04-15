@@ -149,19 +149,19 @@ output "private_dns_zone_resource_group" {
 #####################
 
 output "name_prefix" {
-  value = var.name_prefix
+  value = local.name_prefix
 }
 
 output "team_a_cluster_name" {
-  value = "${var.name_prefix}-team-a"
+  value = "${local.name_prefix}-team-a"
 }
 
 output "team_b_cluster_name" {
-  value = "${var.name_prefix}-team-b"
+  value = "${local.name_prefix}-team-b"
 }
 
 output "team_c_cluster_name" {
-  value = "${var.name_prefix}-team-c"
+  value = "${local.name_prefix}-team-c"
 }
 
 #####################

@@ -25,7 +25,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -70,7 +70,7 @@ locals {
 
 module "azure_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   name    = "${var.name_prefix}-transit"
   cloud   = "Azure"
@@ -116,7 +116,7 @@ module "frontend_vnet" {
 
 module "frontend_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "Azure"
   name       = "${var.name_prefix}-frontend-spoke"
@@ -133,7 +133,7 @@ module "frontend_spoke" {
 
   # Use existing VNet created by aks-vnet module
   use_existing_vpc    = true
-  vpc_id              = "${module.frontend_vnet.vnet_name}:${module.frontend_vnet.resource_group_name}:${module.frontend_vnet.vnet_id}"
+  vpc_id              = "${module.frontend_vnet.vnet_name}:${module.frontend_vnet.resource_group_name}:${module.frontend_vnet.vnet_guid}"
   gw_subnet           = module.frontend_vnet.avx_gateway_subnet_cidr
   hagw_subnet         = module.frontend_vnet.avx_gateway_subnet_cidr
 }
@@ -208,7 +208,7 @@ module "backend_vnet" {
 
 module "backend_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "Azure"
   name       = "${var.name_prefix}-backend-spoke"
@@ -225,7 +225,7 @@ module "backend_spoke" {
 
   # Use existing VNet created by aks-vnet module
   use_existing_vpc    = true
-  vpc_id              = "${module.backend_vnet.vnet_name}:${module.backend_vnet.resource_group_name}:${module.backend_vnet.vnet_id}"
+  vpc_id              = "${module.backend_vnet.vnet_name}:${module.backend_vnet.resource_group_name}:${module.backend_vnet.vnet_guid}"
   gw_subnet           = module.backend_vnet.avx_gateway_subnet_cidr
   hagw_subnet         = module.backend_vnet.avx_gateway_subnet_cidr
 }
@@ -274,7 +274,7 @@ resource "aviatrix_gateway_snat" "backend_spoke_snat" {
 
 module "spoke_db" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud          = "Azure"
   name           = "${var.name_prefix}-db-spoke"

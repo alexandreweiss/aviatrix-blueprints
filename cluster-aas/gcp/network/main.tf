@@ -36,7 +36,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     google = {
       source  = "hashicorp/google"
@@ -59,22 +59,23 @@ provider "google" {
 }
 
 locals {
+  name_prefix   = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
   pod_cidr      = var.pod_cidr
   services_cidr = var.services_cidr
 
   teams = {
     team-a = {
-      name         = "${var.name_prefix}-team-a"
+      name         = "${local.name_prefix}-team-a"
       primary_cidr = var.team_a_vpc_cidr
       master_cidr  = var.team_a_master_cidr
     }
     team-b = {
-      name         = "${var.name_prefix}-team-b"
+      name         = "${local.name_prefix}-team-b"
       primary_cidr = var.team_b_vpc_cidr
       master_cidr  = var.team_b_master_cidr
     }
     team-c = {
-      name         = "${var.name_prefix}-team-c"
+      name         = "${local.name_prefix}-team-c"
       primary_cidr = var.team_c_vpc_cidr
       master_cidr  = var.team_c_master_cidr
     }
@@ -87,22 +88,21 @@ locals {
 
 module "gcp_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "GCP"
   account = var.aviatrix_gcp_account_name
   region  = var.gcp_region
   cidr    = var.transit_cidr
   ha_gw   = false
 
-  enable_transit_firenet        = true
+  enable_transit_firenet        = false
   enable_egress_transit_firenet = false
 
   instance_size     = "n1-standard-4"
   connected_transit = true
 
-  enable_vpc_dns_server = true
 
   # CRITICAL: Exclude non-routable pod CIDR from BGP advertisements
   # This goes on the TRANSIT module, NOT on spokes.
@@ -129,10 +129,10 @@ module "team_a_vpc" {
 
 module "team_a_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-team-a-spoke"
+  name       = "${local.name_prefix}-team-a-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name
@@ -141,7 +141,6 @@ module "team_a_spoke" {
   instance_size = "n1-standard-2"
   ha_gw         = false
 
-  enable_vpc_dns_server = true
 
   # GCP VPC format: "network_name~~project_id"
   use_existing_vpc = true
@@ -204,10 +203,10 @@ module "team_b_vpc" {
 
 module "team_b_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-team-b-spoke"
+  name       = "${local.name_prefix}-team-b-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name
@@ -215,7 +214,6 @@ module "team_b_spoke" {
   instance_size = "n1-standard-2"
   ha_gw         = false
 
-  enable_vpc_dns_server = true
 
   use_existing_vpc = true
   vpc_id           = "${module.team_b_vpc.network_name}~~${var.gcp_project}"
@@ -276,10 +274,10 @@ module "team_c_vpc" {
 
 module "team_c_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-team-c-spoke"
+  name       = "${local.name_prefix}-team-c-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name
@@ -287,7 +285,6 @@ module "team_c_spoke" {
   instance_size = "n1-standard-2"
   ha_gw         = false
 
-  enable_vpc_dns_server = true
 
   use_existing_vpc = true
   vpc_id           = "${module.team_c_vpc.network_name}~~${var.gcp_project}"
@@ -335,10 +332,10 @@ resource "aviatrix_gateway_snat" "team_c_spoke_snat" {
 
 module "spoke_db" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud          = "GCP"
-  name           = "${var.name_prefix}-db-spoke"
+  name           = "${local.name_prefix}-db-spoke"
   cidr           = var.db_vpc_cidr
   account        = var.aviatrix_gcp_account_name
   region         = var.gcp_region
@@ -347,7 +344,6 @@ module "spoke_db" {
   ha_gw          = false
   single_ip_snat = true
 
-  enable_vpc_dns_server = true
 }
 
 #####################
@@ -368,7 +364,7 @@ resource "google_dns_managed_zone" "private" {
     # Associate with transit VPC
     # CRITICAL: Use GCP self-link format for transit VPC, not Aviatrix format
     networks {
-      network_url = "projects/${var.gcp_project}/global/networks/${split("~~", module.gcp_transit.vpc.vpc_id)[0]}"
+      network_url = "projects/${var.gcp_project}/global/networks/${split("~-~", module.gcp_transit.vpc.vpc_id)[0]}"
     }
 
     # Associate with team VPCs (these use module output which is already self-link format)

@@ -43,7 +43,7 @@ provider "kubernetes" {
 }
 
 module "team_b_gke" {
-  source = "../../../gcp-gke-multicluster/modules/gke-cluster"
+  source = "../../../../gcp-gke-multicluster/modules/gke-cluster"
 
   cluster_name = local.cluster_name
   project      = local.gcp_project

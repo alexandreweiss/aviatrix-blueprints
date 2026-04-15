@@ -17,8 +17,13 @@ output "resource_group_id" {
 #####################
 
 output "vnet_id" {
-  description = "Virtual Network ID"
+  description = "Virtual Network ARM resource ID"
   value       = azurerm_virtual_network.this.id
+}
+
+output "vnet_guid" {
+  description = "Virtual Network GUID (used for Aviatrix vpc_id format)"
+  value       = azurerm_virtual_network.this.guid
 }
 
 output "vnet_name" {
