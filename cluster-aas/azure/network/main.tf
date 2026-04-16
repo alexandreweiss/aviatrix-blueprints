@@ -398,12 +398,12 @@ resource "azurerm_private_dns_zone_virtual_network_link" "team_c" {
 }
 
 # Link DNS zone to transit VNet
-# CRITICAL: Extract ARM VNet ID from Aviatrix format using element(split(":", vpc_id), 2)
+# Aviatrix vpc_id format: "vnet_name:rg_name:guid" — reconstruct ARM ID
 resource "azurerm_private_dns_zone_virtual_network_link" "transit" {
   name                  = "transit-dns-link"
   resource_group_name   = module.team_a_vnet.resource_group_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = element(split(":", module.azure_transit.vpc.vpc_id), 2)
+  virtual_network_id    = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", module.azure_transit.vpc.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", module.azure_transit.vpc.vpc_id), 0)}"
   registration_enabled  = false
 }
 

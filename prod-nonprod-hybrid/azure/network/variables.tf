@@ -30,6 +30,11 @@ variable "azure_region" {
   default     = "East US"
 }
 
+variable "azure_subscription_id" {
+  description = "Azure subscription ID (used for ARM resource ID construction)"
+  type        = string
+}
+
 variable "resource_group_name" {
   description = "Azure Resource Group name"
   type        = string

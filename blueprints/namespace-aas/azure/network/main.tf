@@ -27,7 +27,7 @@ terraform {
   required_providers {
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -50,7 +50,8 @@ provider "azurerm" {
 }
 
 locals {
-  pod_cidr = var.pod_cidr
+  name_prefix = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
+  pod_cidr    = var.pod_cidr
 }
 
 #####################
@@ -59,9 +60,9 @@ locals {
 
 module "azure_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "Azure"
   account = var.aviatrix_azure_account_name
   region  = var.azure_region
@@ -94,7 +95,7 @@ module "azure_transit" {
 module "shared_vnet" {
   source = "../../../azure-aks-multicluster/network/modules/aks-vnet"
 
-  name      = "${var.name_prefix}-shared-vnet"
+  name      = "${local.name_prefix}-shared-vnet"
   location  = var.azure_region
   vnet_cidr = var.shared_vnet_cidr
   pod_cidr  = local.pod_cidr
@@ -112,10 +113,10 @@ module "shared_vnet" {
 
 module "shared_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "Azure"
-  name       = "${var.name_prefix}-shared-spoke"
+  name       = "${local.name_prefix}-shared-spoke"
   account    = var.aviatrix_azure_account_name
   region     = var.azure_region
   transit_gw = module.azure_transit.transit_gateway.gw_name
@@ -207,11 +208,12 @@ resource "azurerm_private_dns_zone_virtual_network_link" "shared" {
 }
 
 # Link DNS zone to transit VNet
-# Extract ARM VNet ID: element(split(":", vpc_id), 2) for DNS links
+# Aviatrix vpc_id format: "vnet_name:rg_name:guid"
+# Azure DNS link needs full ARM ID, reconstructed from vpc_id components
 resource "azurerm_private_dns_zone_virtual_network_link" "transit" {
   name                  = "transit-dns-link"
   resource_group_name   = module.shared_vnet.resource_group_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = element(split(":", module.azure_transit.vpc.vpc_id), 2)
+  virtual_network_id    = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", module.azure_transit.vpc.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", module.azure_transit.vpc.vpc_id), 0)}"
   registration_enabled  = false
 }

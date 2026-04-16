@@ -263,7 +263,7 @@ data "aviatrix_dcf_attachment_point" "tf_before_ui" {
 
 resource "aviatrix_dcf_ruleset" "namespace_isolation" {
   depends_on = [time_sleep.wait_for_dcf]
-  name       = "naas-namespace-isolation"
+  name       = "${local.name_prefix}-namespace-isolation"
   attach_to  = "defa11a1-3000-4001-0000-000000000000"
 
   #############################

@@ -192,8 +192,8 @@ resource "azurerm_private_dns_zone" "internal" {
 # Extract ARM VNet IDs for DNS links
 locals {
   name_prefix         = var.name_suffix != "" ? "${var.environment_prefix}-${var.name_suffix}" : var.environment_prefix
-  prod_arm_vnet_id    = element(split(":", aviatrix_vpc.prod.vpc_id), 2)
-  nonprod_arm_vnet_id = element(split(":", aviatrix_vpc.nonprod.vpc_id), 2)
+  prod_arm_vnet_id    = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", aviatrix_vpc.prod.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.prod.vpc_id), 0)}"
+  nonprod_arm_vnet_id = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", aviatrix_vpc.nonprod.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.nonprod.vpc_id), 0)}"
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "prod" {
