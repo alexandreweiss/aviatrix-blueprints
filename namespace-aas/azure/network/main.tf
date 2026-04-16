@@ -3,8 +3,8 @@
 #
 # This layer provisions:
 #   - Aviatrix Transit Gateway in Azure
-#   - 1 shared cluster VNet (all teams share a single AKS cluster)
-#   - 1 Aviatrix Spoke Gateway with custom SNAT for pod traffic
+#   - 1 shared cluster VNet via aviatrix_vpc (cloud_type=8)
+#   - 1 Aviatrix Spoke Gateway with single_ip_snat for pod traffic
 #   - Azure Private DNS Zone for internal DNS
 #
 # Architecture:
@@ -90,94 +90,43 @@ module "azure_transit" {
 # Unlike Pattern A (Cluster-as-a-Service) which creates 1 VNet per team,
 # Pattern B uses a single VNet for the shared cluster. All teams' namespaces
 # run in the same AKS cluster within this VNet.
+#
+# Using aviatrix_vpc (cloud_type=8) instead of the aks-vnet module so that
+# Aviatrix manages the route tables. This is required for SNAT to work
+# correctly — Azure-native route tables conflict with Aviatrix spoke gateways.
 #####################
 
-module "shared_vnet" {
-  source = "../../../azure-aks-multicluster/network/modules/aks-vnet"
-
-  name      = "${local.name_prefix}-shared-vnet"
-  location  = var.azure_region
-  vnet_cidr = var.shared_vnet_cidr
-  pod_cidr  = local.pod_cidr
-
-  tags = {
-    Environment = var.env
-    Pattern     = "namespace-aas"
-    Terraform   = "true"
-  }
+resource "aviatrix_vpc" "shared" {
+  cloud_type           = 8 # Azure
+  account_name         = var.aviatrix_azure_account_name
+  name                 = "${local.name_prefix}-shared-vnet"
+  region               = var.azure_region
+  cidr                 = var.shared_vnet_cidr
+  aviatrix_firenet_vpc = false
 }
 
 #####################
 # Spoke Gateway (Shared Cluster VNet)
+#
+# single_ip_snat = true replaces the old aviatrix_gateway_snat resource.
+# Aviatrix handles all SNAT for pod and node traffic automatically.
 #####################
 
-module "shared_spoke" {
-  source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.2.0"
+resource "aviatrix_spoke_gateway" "shared" {
+  cloud_type   = 8
+  account_name = var.aviatrix_azure_account_name
+  gw_name      = "${local.name_prefix}-shared-spoke"
+  vpc_id       = aviatrix_vpc.shared.vpc_id
+  vpc_reg      = var.azure_region
+  gw_size      = "Standard_B2ms"
+  subnet       = aviatrix_vpc.shared.public_subnets[0].cidr
 
-  cloud      = "Azure"
-  name       = "${local.name_prefix}-shared-spoke"
-  account    = var.aviatrix_azure_account_name
-  region     = var.azure_region
-  transit_gw = module.azure_transit.transit_gateway.gw_name
-
-  instance_size = "Standard_B2ms"
-  ha_gw         = false
-
-  # Use VPC DNS server for gateway management — required for hostname SmartGroups
-  enable_vpc_dns_server = true
-
-  # Use existing VNet created by aks-vnet module
-  use_existing_vpc = true
-  vpc_id           = "${module.shared_vnet.vnet_name}:${module.shared_vnet.resource_group_name}:${module.shared_vnet.vnet_guid}"
-  gw_subnet        = module.shared_vnet.avx_gateway_subnet_cidr
-  hagw_subnet      = module.shared_vnet.avx_gateway_subnet_cidr
+  single_ip_snat = true
 }
 
-# CRITICAL: Custom SNAT for pod traffic (100.64.0.0/16 -> spoke gateway IP)
-#
-# Why SNAT is needed:
-#   Azure CNI Overlay pods use non-routable addresses (100.64.x.x).
-#   Aviatrix transit cannot route these overlapping CIDRs.
-#   SNAT translates pod source IPs to the spoke gateway IP, making traffic
-#   routable across the Aviatrix transit fabric.
-#
-# DCF sees POST-SNAT traffic, so use VPC SmartGroups for source matching.
-resource "aviatrix_gateway_snat" "shared_spoke_snat" {
-  gw_name   = module.shared_spoke.spoke_gateway.gw_name
-  snat_mode = "customized_snat"
-
-  # SNAT for pod CIDR to all destinations via transit
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = ""
-    connection = module.azure_transit.transit_gateway.gw_name
-    snat_ips   = module.shared_spoke.spoke_gateway.private_ip
-  }
-
-  # SNAT for pod CIDR to internet via eth0
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.shared_spoke.spoke_gateway.private_ip
-  }
-
-  # SNAT for AKS node subnet to internet
-  snat_policy {
-    src_cidr   = module.shared_vnet.aks_system_subnet_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.shared_spoke.spoke_gateway.private_ip
-  }
-
-  depends_on = [module.shared_spoke]
+resource "aviatrix_spoke_transit_attachment" "shared" {
+  spoke_gw_name   = aviatrix_spoke_gateway.shared.gw_name
+  transit_gw_name = module.azure_transit.transit_gateway.gw_name
 }
 
 #####################
@@ -187,9 +136,17 @@ resource "aviatrix_gateway_snat" "shared_spoke_snat" {
 # Each linked VNet can resolve records in the zone.
 #####################
 
+# Extract ARM VNet IDs for DNS links
+# Aviatrix vpc_id format: "vnet_name:rg_name:guid"
+locals {
+  shared_rg_name      = element(split(":", aviatrix_vpc.shared.vpc_id), 1)
+  shared_arm_vnet_id  = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${local.shared_rg_name}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.shared.vpc_id), 0)}"
+  transit_arm_vnet_id = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", module.azure_transit.vpc.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", module.azure_transit.vpc.vpc_id), 0)}"
+}
+
 resource "azurerm_private_dns_zone" "this" {
   name                = var.private_dns_zone_name
-  resource_group_name = module.shared_vnet.resource_group_name
+  resource_group_name = local.shared_rg_name
 
   tags = {
     Environment = var.env
@@ -201,19 +158,17 @@ resource "azurerm_private_dns_zone" "this" {
 # Link DNS zone to shared cluster VNet
 resource "azurerm_private_dns_zone_virtual_network_link" "shared" {
   name                  = "shared-cluster-dns-link"
-  resource_group_name   = module.shared_vnet.resource_group_name
+  resource_group_name   = local.shared_rg_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = module.shared_vnet.vnet_id
+  virtual_network_id    = local.shared_arm_vnet_id
   registration_enabled  = false
 }
 
 # Link DNS zone to transit VNet
-# Aviatrix vpc_id format: "vnet_name:rg_name:guid"
-# Azure DNS link needs full ARM ID, reconstructed from vpc_id components
 resource "azurerm_private_dns_zone_virtual_network_link" "transit" {
   name                  = "transit-dns-link"
-  resource_group_name   = module.shared_vnet.resource_group_name
+  resource_group_name   = local.shared_rg_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", module.azure_transit.vpc.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", module.azure_transit.vpc.vpc_id), 0)}"
+  virtual_network_id    = local.transit_arm_vnet_id
   registration_enabled  = false
 }

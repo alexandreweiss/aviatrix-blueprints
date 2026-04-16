@@ -22,13 +22,13 @@ output "transit_vnet_id" {
 #####################
 
 output "shared_vnet_id" {
-  description = "Shared cluster VNet ID"
-  value       = module.shared_vnet.vnet_id
+  description = "Shared cluster VNet ID (Aviatrix format: vnet_name:rg_name:guid)"
+  value       = aviatrix_vpc.shared.vpc_id
 }
 
 output "shared_vnet_name" {
   description = "Shared cluster VNet name"
-  value       = module.shared_vnet.vnet_name
+  value       = aviatrix_vpc.shared.name
 }
 
 output "shared_vnet_cidr" {
@@ -37,23 +37,36 @@ output "shared_vnet_cidr" {
 }
 
 output "shared_resource_group_name" {
-  description = "Shared cluster resource group name"
-  value       = module.shared_vnet.resource_group_name
+  description = "Shared cluster resource group name (created by aviatrix_vpc)"
+  value       = local.shared_rg_name
 }
 
+output "shared_arm_vnet_id" {
+  description = "Shared cluster VNet ARM resource ID"
+  value       = local.shared_arm_vnet_id
+}
+
+output "shared_public_subnets" {
+  description = "Shared cluster VNet public subnets (created by aviatrix_vpc)"
+  value       = aviatrix_vpc.shared.public_subnets
+}
+
+# Backward-compatible outputs for downstream layers (clusters, nodes)
+# aviatrix_vpc public_subnets[1] is used as the AKS node subnet
+# (public_subnets[0] is reserved for the Aviatrix spoke gateway)
 output "shared_aks_system_subnet_id" {
-  description = "AKS system node pool subnet ID"
-  value       = module.shared_vnet.aks_system_subnet_id
+  description = "AKS system node pool subnet ID (second public subnet from aviatrix_vpc)"
+  value       = aviatrix_vpc.shared.public_subnets[1].subnet_id
 }
 
 output "shared_aks_system_subnet_cidr" {
   description = "AKS system node pool subnet CIDR"
-  value       = module.shared_vnet.aks_system_subnet_cidr
+  value       = aviatrix_vpc.shared.public_subnets[1].cidr
 }
 
 output "shared_aks_system_subnet_name" {
   description = "AKS system node pool subnet name"
-  value       = module.shared_vnet.aks_system_subnet_name
+  value       = aviatrix_vpc.shared.public_subnets[1].name
 }
 
 #####################
@@ -62,13 +75,13 @@ output "shared_aks_system_subnet_name" {
 
 output "shared_spoke_gateway_name" {
   description = "Shared spoke gateway name"
-  value       = module.shared_spoke.spoke_gateway.gw_name
+  value       = aviatrix_spoke_gateway.shared.gw_name
   sensitive   = true
 }
 
 output "shared_spoke_gateway_private_ip" {
-  description = "Shared spoke gateway private IP (used for SNAT)"
-  value       = module.shared_spoke.spoke_gateway.private_ip
+  description = "Shared spoke gateway private IP (SNAT enabled via single_ip_snat)"
+  value       = aviatrix_spoke_gateway.shared.private_ip
   sensitive   = true
 }
 
@@ -88,7 +101,7 @@ output "private_dns_zone_name" {
 
 output "private_dns_zone_resource_group" {
   description = "Resource group containing the Private DNS zone"
-  value       = module.shared_vnet.resource_group_name
+  value       = local.shared_rg_name
 }
 
 #####################

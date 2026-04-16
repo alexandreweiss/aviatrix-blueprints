@@ -3,8 +3,8 @@
 #
 # This layer provisions:
 #   - Aviatrix Transit Gateway in Azure
-#   - 3x team VNets (team-a, team-b, team-c) via aks-vnet module
-#   - 3x Aviatrix Spoke Gateways (active/active) with custom SNAT for pod traffic
+#   - 3x team VNets (team-a, team-b, team-c) via aviatrix_vpc (cloud_type=8)
+#   - 3x Aviatrix Spoke Gateways with single_ip_snat for pod traffic
 #   - Database spoke VNet
 #   - Azure Private DNS Zone for internal service discovery
 #
@@ -23,9 +23,10 @@
 # CRITICAL LESSONS LEARNED:
 #   - excluded_advertised_spoke_routes goes on the TRANSIT module, NOT on spokes
 #   - This is software-defined routing via Aviatrix, not BGP from spokes
-#   - Gateways are Active/Active, not standby
 #   - DCF sees POST-SNAT traffic -- use VPC SmartGroups for source, hostname for dest
-#   - Extract ARM VNet ID from Aviatrix format: element(split(":", vpc_id), 2)
+#   - Use aviatrix_vpc (cloud_type=8) for spoke VNets so Aviatrix manages route tables
+#   - Azure-native route tables from aks-vnet module conflict with Aviatrix spoke gateways
+#   - Extract ARM VNet ID from Aviatrix format: element(split(":", vpc_id), 0/1)
 #   - VNet names use suffix "-vnet" -- SmartGroups must match e.g. "team-a-vnet"
 #####################
 
@@ -108,232 +109,96 @@ module "azure_transit" {
 
 #####################
 # Team-A VNet and Spoke
+#
+# Using aviatrix_vpc (cloud_type=8) instead of the aks-vnet module so that
+# Aviatrix manages the route tables. This is required for SNAT to work
+# correctly — Azure-native route tables conflict with Aviatrix spoke gateways.
 #####################
 
-# Module source: ../../azure-aks-multicluster/network/modules/aks-vnet
-module "team_a_vnet" {
-  source = "../../../azure-aks-multicluster/network/modules/aks-vnet"
-
-  name      = "team-a"
-  location  = var.azure_region
-  vnet_cidr = local.teams["team-a"].vnet_cidr
-  pod_cidr  = local.pod_cidr
-
-  tags = {
-    Environment = "demo"
-    Team        = "team-a"
-    Terraform   = "true"
-    Pattern     = "cluster-aas"
-  }
+resource "aviatrix_vpc" "team_a" {
+  cloud_type           = 8 # Azure
+  account_name         = var.aviatrix_azure_account_name
+  name                 = "${local.name_prefix}-team-a-vnet"
+  region               = var.azure_region
+  cidr                 = local.teams["team-a"].vnet_cidr
+  aviatrix_firenet_vpc = false
 }
 
-module "team_a_spoke" {
-  source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.2.0"
+resource "aviatrix_spoke_gateway" "team_a" {
+  cloud_type   = 8
+  account_name = var.aviatrix_azure_account_name
+  gw_name      = "${local.name_prefix}-team-a-spoke"
+  vpc_id       = aviatrix_vpc.team_a.vpc_id
+  vpc_reg      = var.azure_region
+  gw_size      = "Standard_B2ms"
+  subnet       = aviatrix_vpc.team_a.public_subnets[0].cidr
 
-  cloud      = "Azure"
-  name       = "${local.name_prefix}-team-a-spoke"
-  account    = var.aviatrix_azure_account_name
-  region     = var.azure_region
-  transit_gw = module.azure_transit.transit_gateway.gw_name
-
-  # Active/Active gateways - NOT standby
-  instance_size = "Standard_B2ms"
-  ha_gw         = false
-
-  enable_vpc_dns_server = true
-
-  # Use existing VNet created by aks-vnet module
-  # Format: "vnet_name:resource_group_name:arm_vnet_id"
-  use_existing_vpc = true
-  vpc_id           = "${module.team_a_vnet.vnet_name}:${module.team_a_vnet.resource_group_name}:${module.team_a_vnet.vnet_guid}"
-  gw_subnet        = module.team_a_vnet.avx_gateway_subnet_cidr
-  hagw_subnet      = module.team_a_vnet.avx_gateway_subnet_cidr
+  single_ip_snat = true
 }
 
-# CRITICAL: Custom SNAT for pod traffic (100.64.0.0/16 -> spoke gateway IP)
-resource "aviatrix_gateway_snat" "team_a_spoke_snat" {
-  gw_name   = module.team_a_spoke.spoke_gateway.gw_name
-  snat_mode = "customized_snat"
-
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = ""
-    connection = module.azure_transit.transit_gateway.gw_name
-    snat_ips   = module.team_a_spoke.spoke_gateway.private_ip
-  }
-
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.team_a_spoke.spoke_gateway.private_ip
-  }
-
-  snat_policy {
-    src_cidr   = module.team_a_vnet.aks_system_subnet_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.team_a_spoke.spoke_gateway.private_ip
-  }
-
-  depends_on = [module.team_a_spoke]
+resource "aviatrix_spoke_transit_attachment" "team_a" {
+  spoke_gw_name   = aviatrix_spoke_gateway.team_a.gw_name
+  transit_gw_name = module.azure_transit.transit_gateway.gw_name
 }
 
 #####################
 # Team-B VNet and Spoke
 #####################
 
-module "team_b_vnet" {
-  source = "../../../azure-aks-multicluster/network/modules/aks-vnet"
-
-  name      = "team-b"
-  location  = var.azure_region
-  vnet_cidr = local.teams["team-b"].vnet_cidr
-  pod_cidr  = local.pod_cidr
-
-  tags = {
-    Environment = "demo"
-    Team        = "team-b"
-    Terraform   = "true"
-    Pattern     = "cluster-aas"
-  }
+resource "aviatrix_vpc" "team_b" {
+  cloud_type           = 8 # Azure
+  account_name         = var.aviatrix_azure_account_name
+  name                 = "${local.name_prefix}-team-b-vnet"
+  region               = var.azure_region
+  cidr                 = local.teams["team-b"].vnet_cidr
+  aviatrix_firenet_vpc = false
 }
 
-module "team_b_spoke" {
-  source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.2.0"
+resource "aviatrix_spoke_gateway" "team_b" {
+  cloud_type   = 8
+  account_name = var.aviatrix_azure_account_name
+  gw_name      = "${local.name_prefix}-team-b-spoke"
+  vpc_id       = aviatrix_vpc.team_b.vpc_id
+  vpc_reg      = var.azure_region
+  gw_size      = "Standard_B2ms"
+  subnet       = aviatrix_vpc.team_b.public_subnets[0].cidr
 
-  cloud      = "Azure"
-  name       = "${local.name_prefix}-team-b-spoke"
-  account    = var.aviatrix_azure_account_name
-  region     = var.azure_region
-  transit_gw = module.azure_transit.transit_gateway.gw_name
-
-  instance_size = "Standard_B2ms"
-  ha_gw         = false
-
-  enable_vpc_dns_server = true
-
-  use_existing_vpc = true
-  vpc_id           = "${module.team_b_vnet.vnet_name}:${module.team_b_vnet.resource_group_name}:${module.team_b_vnet.vnet_guid}"
-  gw_subnet        = module.team_b_vnet.avx_gateway_subnet_cidr
-  hagw_subnet      = module.team_b_vnet.avx_gateway_subnet_cidr
+  single_ip_snat = true
 }
 
-resource "aviatrix_gateway_snat" "team_b_spoke_snat" {
-  gw_name   = module.team_b_spoke.spoke_gateway.gw_name
-  snat_mode = "customized_snat"
-
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = ""
-    connection = module.azure_transit.transit_gateway.gw_name
-    snat_ips   = module.team_b_spoke.spoke_gateway.private_ip
-  }
-
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.team_b_spoke.spoke_gateway.private_ip
-  }
-
-  snat_policy {
-    src_cidr   = module.team_b_vnet.aks_system_subnet_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.team_b_spoke.spoke_gateway.private_ip
-  }
-
-  depends_on = [module.team_b_spoke]
+resource "aviatrix_spoke_transit_attachment" "team_b" {
+  spoke_gw_name   = aviatrix_spoke_gateway.team_b.gw_name
+  transit_gw_name = module.azure_transit.transit_gateway.gw_name
 }
 
 #####################
 # Team-C VNet and Spoke
 #####################
 
-module "team_c_vnet" {
-  source = "../../../azure-aks-multicluster/network/modules/aks-vnet"
-
-  name      = "team-c"
-  location  = var.azure_region
-  vnet_cidr = local.teams["team-c"].vnet_cidr
-  pod_cidr  = local.pod_cidr
-
-  tags = {
-    Environment = "demo"
-    Team        = "team-c"
-    Terraform   = "true"
-    Pattern     = "cluster-aas"
-  }
+resource "aviatrix_vpc" "team_c" {
+  cloud_type           = 8 # Azure
+  account_name         = var.aviatrix_azure_account_name
+  name                 = "${local.name_prefix}-team-c-vnet"
+  region               = var.azure_region
+  cidr                 = local.teams["team-c"].vnet_cidr
+  aviatrix_firenet_vpc = false
 }
 
-module "team_c_spoke" {
-  source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.2.0"
+resource "aviatrix_spoke_gateway" "team_c" {
+  cloud_type   = 8
+  account_name = var.aviatrix_azure_account_name
+  gw_name      = "${local.name_prefix}-team-c-spoke"
+  vpc_id       = aviatrix_vpc.team_c.vpc_id
+  vpc_reg      = var.azure_region
+  gw_size      = "Standard_B2ms"
+  subnet       = aviatrix_vpc.team_c.public_subnets[0].cidr
 
-  cloud      = "Azure"
-  name       = "${local.name_prefix}-team-c-spoke"
-  account    = var.aviatrix_azure_account_name
-  region     = var.azure_region
-  transit_gw = module.azure_transit.transit_gateway.gw_name
-
-  instance_size = "Standard_B2ms"
-  ha_gw         = false
-
-  enable_vpc_dns_server = true
-
-  use_existing_vpc = true
-  vpc_id           = "${module.team_c_vnet.vnet_name}:${module.team_c_vnet.resource_group_name}:${module.team_c_vnet.vnet_guid}"
-  gw_subnet        = module.team_c_vnet.avx_gateway_subnet_cidr
-  hagw_subnet      = module.team_c_vnet.avx_gateway_subnet_cidr
+  single_ip_snat = true
 }
 
-resource "aviatrix_gateway_snat" "team_c_spoke_snat" {
-  gw_name   = module.team_c_spoke.spoke_gateway.gw_name
-  snat_mode = "customized_snat"
-
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = ""
-    connection = module.azure_transit.transit_gateway.gw_name
-    snat_ips   = module.team_c_spoke.spoke_gateway.private_ip
-  }
-
-  snat_policy {
-    src_cidr   = local.pod_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.team_c_spoke.spoke_gateway.private_ip
-  }
-
-  snat_policy {
-    src_cidr   = module.team_c_vnet.aks_system_subnet_cidr
-    dst_cidr   = "0.0.0.0/0"
-    protocol   = "all"
-    interface  = "eth0"
-    connection = ""
-    snat_ips   = module.team_c_spoke.spoke_gateway.private_ip
-  }
-
-  depends_on = [module.team_c_spoke]
+resource "aviatrix_spoke_transit_attachment" "team_c" {
+  spoke_gw_name   = aviatrix_spoke_gateway.team_c.gw_name
+  transit_gw_name = module.azure_transit.transit_gateway.gw_name
 }
 
 #####################
@@ -361,9 +226,19 @@ module "spoke_db" {
 # Azure Private DNS Zone
 #####################
 
+# Extract ARM VNet IDs for DNS links
+# Aviatrix vpc_id format: "vnet_name:rg_name:guid"
+locals {
+  team_a_rg_name      = element(split(":", aviatrix_vpc.team_a.vpc_id), 1)
+  team_a_arm_vnet_id  = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${local.team_a_rg_name}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.team_a.vpc_id), 0)}"
+  team_b_arm_vnet_id  = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", aviatrix_vpc.team_b.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.team_b.vpc_id), 0)}"
+  team_c_arm_vnet_id  = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", aviatrix_vpc.team_c.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.team_c.vpc_id), 0)}"
+  transit_arm_vnet_id = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", module.azure_transit.vpc.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", module.azure_transit.vpc.vpc_id), 0)}"
+}
+
 resource "azurerm_private_dns_zone" "this" {
   name                = var.private_dns_zone_name
-  resource_group_name = module.team_a_vnet.resource_group_name
+  resource_group_name = local.team_a_rg_name
 
   tags = {
     Environment = "demo"
@@ -375,35 +250,34 @@ resource "azurerm_private_dns_zone" "this" {
 # Link DNS zone to all team VNets
 resource "azurerm_private_dns_zone_virtual_network_link" "team_a" {
   name                  = "team-a-dns-link"
-  resource_group_name   = module.team_a_vnet.resource_group_name
+  resource_group_name   = local.team_a_rg_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = module.team_a_vnet.vnet_id
+  virtual_network_id    = local.team_a_arm_vnet_id
   registration_enabled  = false
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "team_b" {
   name                  = "team-b-dns-link"
-  resource_group_name   = module.team_a_vnet.resource_group_name
+  resource_group_name   = local.team_a_rg_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = module.team_b_vnet.vnet_id
+  virtual_network_id    = local.team_b_arm_vnet_id
   registration_enabled  = false
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "team_c" {
   name                  = "team-c-dns-link"
-  resource_group_name   = module.team_a_vnet.resource_group_name
+  resource_group_name   = local.team_a_rg_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = module.team_c_vnet.vnet_id
+  virtual_network_id    = local.team_c_arm_vnet_id
   registration_enabled  = false
 }
 
 # Link DNS zone to transit VNet
-# Aviatrix vpc_id format: "vnet_name:rg_name:guid" — reconstruct ARM ID
 resource "azurerm_private_dns_zone_virtual_network_link" "transit" {
   name                  = "transit-dns-link"
-  resource_group_name   = module.team_a_vnet.resource_group_name
+  resource_group_name   = local.team_a_rg_name
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  virtual_network_id    = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", module.azure_transit.vpc.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", module.azure_transit.vpc.vpc_id), 0)}"
+  virtual_network_id    = local.transit_arm_vnet_id
   registration_enabled  = false
 }
 
@@ -414,7 +288,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "transit" {
 resource "azurerm_private_dns_a_record" "db" {
   name                = "db"
   zone_name           = azurerm_private_dns_zone.this.name
-  resource_group_name = module.team_a_vnet.resource_group_name
+  resource_group_name = local.team_a_rg_name
   ttl                 = 300
   records             = [var.db_private_ip]
 }

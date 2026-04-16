@@ -18,32 +18,52 @@ output "transit_vnet_id" {
 #####################
 
 output "team_a_vnet_id" {
-  value = module.team_a_vnet.vnet_id
+  description = "Team-A VNet ID (Aviatrix format: vnet_name:rg_name:guid)"
+  value       = aviatrix_vpc.team_a.vpc_id
 }
 
 output "team_a_vnet_name" {
-  value = module.team_a_vnet.vnet_name
+  description = "Team-A VNet name"
+  value       = aviatrix_vpc.team_a.name
 }
 
 output "team_a_resource_group_name" {
-  value = module.team_a_vnet.resource_group_name
+  description = "Team-A resource group name (created by aviatrix_vpc)"
+  value       = local.team_a_rg_name
 }
 
+output "team_a_arm_vnet_id" {
+  description = "Team-A VNet ARM resource ID"
+  value       = local.team_a_arm_vnet_id
+}
+
+output "team_a_public_subnets" {
+  description = "Team-A VNet public subnets (created by aviatrix_vpc)"
+  value       = aviatrix_vpc.team_a.public_subnets
+}
+
+# Backward-compatible outputs for downstream layers (clusters, nodes)
+# aviatrix_vpc public_subnets[1] is used as the AKS node subnet
+# (public_subnets[0] is reserved for the Aviatrix spoke gateway)
 output "team_a_aks_system_subnet_id" {
-  value = module.team_a_vnet.aks_system_subnet_id
+  description = "Team-A AKS system node pool subnet ID"
+  value       = aviatrix_vpc.team_a.public_subnets[1].subnet_id
 }
 
 output "team_a_aks_system_subnet_cidr" {
-  value = module.team_a_vnet.aks_system_subnet_cidr
+  description = "Team-A AKS system node pool subnet CIDR"
+  value       = aviatrix_vpc.team_a.public_subnets[1].cidr
 }
 
 output "team_a_aks_system_subnet_name" {
-  value = module.team_a_vnet.aks_system_subnet_name
+  description = "Team-A AKS system node pool subnet name"
+  value       = aviatrix_vpc.team_a.public_subnets[1].name
 }
 
 output "team_a_spoke_gateway_name" {
-  value     = module.team_a_spoke.spoke_gateway.gw_name
-  sensitive = true
+  description = "Team-A spoke gateway name"
+  value       = aviatrix_spoke_gateway.team_a.gw_name
+  sensitive   = true
 }
 
 #####################
@@ -51,32 +71,49 @@ output "team_a_spoke_gateway_name" {
 #####################
 
 output "team_b_vnet_id" {
-  value = module.team_b_vnet.vnet_id
+  description = "Team-B VNet ID (Aviatrix format: vnet_name:rg_name:guid)"
+  value       = aviatrix_vpc.team_b.vpc_id
 }
 
 output "team_b_vnet_name" {
-  value = module.team_b_vnet.vnet_name
+  description = "Team-B VNet name"
+  value       = aviatrix_vpc.team_b.name
 }
 
 output "team_b_resource_group_name" {
-  value = module.team_b_vnet.resource_group_name
+  description = "Team-B resource group name (created by aviatrix_vpc)"
+  value       = element(split(":", aviatrix_vpc.team_b.vpc_id), 1)
+}
+
+output "team_b_arm_vnet_id" {
+  description = "Team-B VNet ARM resource ID"
+  value       = local.team_b_arm_vnet_id
+}
+
+output "team_b_public_subnets" {
+  description = "Team-B VNet public subnets (created by aviatrix_vpc)"
+  value       = aviatrix_vpc.team_b.public_subnets
 }
 
 output "team_b_aks_system_subnet_id" {
-  value = module.team_b_vnet.aks_system_subnet_id
+  description = "Team-B AKS system node pool subnet ID"
+  value       = aviatrix_vpc.team_b.public_subnets[1].subnet_id
 }
 
 output "team_b_aks_system_subnet_cidr" {
-  value = module.team_b_vnet.aks_system_subnet_cidr
+  description = "Team-B AKS system node pool subnet CIDR"
+  value       = aviatrix_vpc.team_b.public_subnets[1].cidr
 }
 
 output "team_b_aks_system_subnet_name" {
-  value = module.team_b_vnet.aks_system_subnet_name
+  description = "Team-B AKS system node pool subnet name"
+  value       = aviatrix_vpc.team_b.public_subnets[1].name
 }
 
 output "team_b_spoke_gateway_name" {
-  value     = module.team_b_spoke.spoke_gateway.gw_name
-  sensitive = true
+  description = "Team-B spoke gateway name"
+  value       = aviatrix_spoke_gateway.team_b.gw_name
+  sensitive   = true
 }
 
 #####################
@@ -84,32 +121,49 @@ output "team_b_spoke_gateway_name" {
 #####################
 
 output "team_c_vnet_id" {
-  value = module.team_c_vnet.vnet_id
+  description = "Team-C VNet ID (Aviatrix format: vnet_name:rg_name:guid)"
+  value       = aviatrix_vpc.team_c.vpc_id
 }
 
 output "team_c_vnet_name" {
-  value = module.team_c_vnet.vnet_name
+  description = "Team-C VNet name"
+  value       = aviatrix_vpc.team_c.name
 }
 
 output "team_c_resource_group_name" {
-  value = module.team_c_vnet.resource_group_name
+  description = "Team-C resource group name (created by aviatrix_vpc)"
+  value       = element(split(":", aviatrix_vpc.team_c.vpc_id), 1)
+}
+
+output "team_c_arm_vnet_id" {
+  description = "Team-C VNet ARM resource ID"
+  value       = local.team_c_arm_vnet_id
+}
+
+output "team_c_public_subnets" {
+  description = "Team-C VNet public subnets (created by aviatrix_vpc)"
+  value       = aviatrix_vpc.team_c.public_subnets
 }
 
 output "team_c_aks_system_subnet_id" {
-  value = module.team_c_vnet.aks_system_subnet_id
+  description = "Team-C AKS system node pool subnet ID"
+  value       = aviatrix_vpc.team_c.public_subnets[1].subnet_id
 }
 
 output "team_c_aks_system_subnet_cidr" {
-  value = module.team_c_vnet.aks_system_subnet_cidr
+  description = "Team-C AKS system node pool subnet CIDR"
+  value       = aviatrix_vpc.team_c.public_subnets[1].cidr
 }
 
 output "team_c_aks_system_subnet_name" {
-  value = module.team_c_vnet.aks_system_subnet_name
+  description = "Team-C AKS system node pool subnet name"
+  value       = aviatrix_vpc.team_c.public_subnets[1].name
 }
 
 output "team_c_spoke_gateway_name" {
-  value     = module.team_c_spoke.spoke_gateway.gw_name
-  sensitive = true
+  description = "Team-C spoke gateway name"
+  value       = aviatrix_spoke_gateway.team_c.gw_name
+  sensitive   = true
 }
 
 #####################
@@ -141,7 +195,7 @@ output "private_dns_zone_name" {
 }
 
 output "private_dns_zone_resource_group" {
-  value = module.team_a_vnet.resource_group_name
+  value = local.team_a_rg_name
 }
 
 #####################
