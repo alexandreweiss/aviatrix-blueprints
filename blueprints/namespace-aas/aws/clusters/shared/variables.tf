@@ -9,3 +9,24 @@ variable "cluster_endpoint_public_access" {
   type        = bool
   default     = true
 }
+
+# ──── Architecture Recommendation Toggles ────────────────────────────────────
+
+variable "enable_private_endpoint" {
+  description = <<-EOT
+    Disable public access to the EKS API server endpoint (private-only).
+    Overrides cluster_endpoint_public_access when true.
+    Ref: https://docs.aws.amazon.com/eks/latest/userguide/private-clusters.html
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "enable_control_plane_logging" {
+  description = <<-EOT
+    Enable EKS control plane logging (audit, api, authenticator, controllerManager, scheduler).
+    Ref: https://docs.aws.amazon.com/eks/latest/userguide/control-plane-logs.html
+  EOT
+  type        = bool
+  default     = false
+}

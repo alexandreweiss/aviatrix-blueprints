@@ -16,7 +16,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -81,10 +81,10 @@ module "team_c_aks" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.team_c_aks.cluster_id
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.team_c_aks.cluster_id
+#   use_csp_credentials = true
+# }
 
 #####################
 # Outputs

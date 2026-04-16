@@ -41,7 +41,7 @@ resource "time_sleep" "wait_for_dcf" {
 # ===========================================================================
 
 resource "aviatrix_smart_group" "prod_vpc" {
-  name = "${var.environment_prefix}-prod-vpc"
+  name = "${local.name_prefix}-prod-vpc"
 
   selector {
     match_expressions {
@@ -49,14 +49,14 @@ resource "aviatrix_smart_group" "prod_vpc" {
       account_name = var.azure_account_name
       region       = var.azure_region
       tags = {
-        "avx:vpc-name" = "${var.environment_prefix}-prod-vnet"
+        "avx:vpc-name" = "${local.name_prefix}-prod-vnet"
       }
     }
   }
 }
 
 resource "aviatrix_smart_group" "nonprod_vpc" {
-  name = "${var.environment_prefix}-nonprod-vpc"
+  name = "${local.name_prefix}-nonprod-vpc"
 
   selector {
     match_expressions {
@@ -64,14 +64,14 @@ resource "aviatrix_smart_group" "nonprod_vpc" {
       account_name = var.azure_account_name
       region       = var.azure_region
       tags = {
-        "avx:vpc-name" = "${var.environment_prefix}-nonprod-vnet"
+        "avx:vpc-name" = "${local.name_prefix}-nonprod-vnet"
       }
     }
   }
 }
 
 resource "aviatrix_smart_group" "prod_db" {
-  name = "${var.environment_prefix}-prod-db"
+  name = "${local.name_prefix}-prod-db"
 
   selector {
     match_expressions {
@@ -79,7 +79,7 @@ resource "aviatrix_smart_group" "prod_db" {
       account_name = var.azure_account_name
       region       = var.azure_region
       tags = {
-        "avx:vpc-name" = "${var.environment_prefix}-prod-db-vnet"
+        "avx:vpc-name" = "${local.name_prefix}-prod-db-vnet"
       }
     }
   }
@@ -93,7 +93,7 @@ resource "aviatrix_smart_group" "prod_db" {
 # --- Production cluster namespaces ---
 
 resource "aviatrix_smart_group" "team_a_prod" {
-  name = "${var.environment_prefix}-team-a-prod"
+  name = "${local.name_prefix}-team-a-prod"
 
   selector {
     match_expressions {
@@ -105,7 +105,7 @@ resource "aviatrix_smart_group" "team_a_prod" {
 }
 
 resource "aviatrix_smart_group" "team_b_prod" {
-  name = "${var.environment_prefix}-team-b-prod"
+  name = "${local.name_prefix}-team-b-prod"
 
   selector {
     match_expressions {
@@ -117,7 +117,7 @@ resource "aviatrix_smart_group" "team_b_prod" {
 }
 
 resource "aviatrix_smart_group" "monitoring_prod" {
-  name = "${var.environment_prefix}-monitoring-prod"
+  name = "${local.name_prefix}-monitoring-prod"
 
   selector {
     match_expressions {
@@ -131,7 +131,7 @@ resource "aviatrix_smart_group" "monitoring_prod" {
 # --- Non-production cluster namespaces ---
 
 resource "aviatrix_smart_group" "team_a_dev" {
-  name = "${var.environment_prefix}-team-a-dev"
+  name = "${local.name_prefix}-team-a-dev"
 
   selector {
     match_expressions {
@@ -143,7 +143,7 @@ resource "aviatrix_smart_group" "team_a_dev" {
 }
 
 resource "aviatrix_smart_group" "team_b_staging" {
-  name = "${var.environment_prefix}-team-b-staging"
+  name = "${local.name_prefix}-team-b-staging"
 
   selector {
     match_expressions {
@@ -155,7 +155,7 @@ resource "aviatrix_smart_group" "team_b_staging" {
 }
 
 resource "aviatrix_smart_group" "sandbox" {
-  name = "${var.environment_prefix}-sandbox"
+  name = "${local.name_prefix}-sandbox"
 
   selector {
     match_expressions {
@@ -167,7 +167,7 @@ resource "aviatrix_smart_group" "sandbox" {
 }
 
 resource "aviatrix_smart_group" "monitoring_nonprod" {
-  name = "${var.environment_prefix}-monitoring-nonprod"
+  name = "${local.name_prefix}-monitoring-nonprod"
 
   selector {
     match_expressions {
@@ -181,7 +181,7 @@ resource "aviatrix_smart_group" "monitoring_nonprod" {
 # --- Geo / Threat Intelligence SmartGroups ---
 
 resource "aviatrix_smart_group" "geo_blocked" {
-  name = "${var.environment_prefix}-sg-geo-blocked"
+  name = "${local.name_prefix}-sg-geo-blocked"
   selector {
     match_expressions {
       external = "geo"
@@ -199,7 +199,7 @@ resource "aviatrix_smart_group" "geo_blocked" {
 }
 
 resource "aviatrix_smart_group" "threat_intel" {
-  name = "${var.environment_prefix}-sg-threat-intel"
+  name = "${local.name_prefix}-sg-threat-intel"
   selector {
     match_expressions {
       external = "threatiq"
@@ -215,7 +215,7 @@ resource "aviatrix_smart_group" "threat_intel" {
 # --- Aggregate SmartGroups ---
 
 resource "aviatrix_smart_group" "all_clusters" {
-  name = "${var.environment_prefix}-all-clusters"
+  name = "${local.name_prefix}-all-clusters"
 
   selector {
     match_expressions {
@@ -223,7 +223,7 @@ resource "aviatrix_smart_group" "all_clusters" {
       account_name = var.azure_account_name
       region       = var.azure_region
       tags = {
-        "avx:vpc-name" = "${var.environment_prefix}-prod-vnet"
+        "avx:vpc-name" = "${local.name_prefix}-prod-vnet"
       }
     }
     match_expressions {
@@ -231,7 +231,7 @@ resource "aviatrix_smart_group" "all_clusters" {
       account_name = var.azure_account_name
       region       = var.azure_region
       tags = {
-        "avx:vpc-name" = "${var.environment_prefix}-nonprod-vnet"
+        "avx:vpc-name" = "${local.name_prefix}-nonprod-vnet"
       }
     }
   }
@@ -242,7 +242,7 @@ resource "aviatrix_smart_group" "all_clusters" {
 # ===========================================================================
 
 resource "aviatrix_web_group" "public_internet" {
-  name = "${var.environment_prefix}-public-internet"
+  name = "${local.name_prefix}-public-internet"
 
   selector {
     match_expressions {
@@ -267,7 +267,7 @@ resource "aviatrix_web_group" "public_internet" {
 }
 
 resource "aviatrix_web_group" "prod_approved_apis" {
-  name = "${var.environment_prefix}-prod-approved-apis"
+  name = "${local.name_prefix}-prod-approved-apis"
 
   selector {
     match_expressions {
@@ -283,7 +283,7 @@ resource "aviatrix_web_group" "prod_approved_apis" {
 }
 
 resource "aviatrix_web_group" "sandbox_relaxed_egress" {
-  name = "${var.environment_prefix}-sandbox-relaxed-egress"
+  name = "${local.name_prefix}-sandbox-relaxed-egress"
 
   selector {
     match_expressions {
@@ -298,12 +298,12 @@ resource "aviatrix_web_group" "sandbox_relaxed_egress" {
 
 resource "aviatrix_dcf_ruleset" "pattern_c" {
   depends_on = [time_sleep.wait_for_dcf]
-  name       = "${var.environment_prefix}-prod-nonprod-hybrid-azure"
+  name       = "${local.name_prefix}-prod-nonprod-hybrid-azure"
   attach_to  = "9817dbf0-0703-4613-a5da-46badb709b7d"  # PRE_HOOK
 
   rules {
     # ----- Priority 0: Geo-blocking (IR, KP, RU) -----
-    name     = "${var.environment_prefix}-geo-block"
+    name     = "${local.name_prefix}-geo-block"
     action   = "DENY"
     priority = 0
     protocol = "ANY"
@@ -315,7 +315,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 1: Threat Intelligence (major + critical) -----
-    name     = "${var.environment_prefix}-threatiq-block"
+    name     = "${local.name_prefix}-threatiq-block"
     action   = "DENY"
     priority = 1
     protocol = "ANY"
@@ -332,7 +332,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 10: DENY prod-vpc -> nonprod-vpc -----
-    name     = "${var.environment_prefix}-deny-prod-to-nonprod"
+    name     = "${local.name_prefix}-deny-prod-to-nonprod"
     action   = "DENY"
     priority = 10
     protocol = "ANY"
@@ -344,7 +344,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 11: DENY nonprod-vpc -> prod-vpc (bidirectional) -----
-    name     = "${var.environment_prefix}-deny-nonprod-to-prod"
+    name     = "${local.name_prefix}-deny-nonprod-to-prod"
     action   = "DENY"
     priority = 11
     protocol = "ANY"
@@ -360,7 +360,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 20: PERMIT prod-vpc -> prod-db TCP/3306,5432 -----
-    name     = "${var.environment_prefix}-prod-to-db"
+    name     = "${local.name_prefix}-prod-to-db"
     action   = "PERMIT"
     priority = 20
     protocol = "TCP"
@@ -379,7 +379,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 21: DENY nonprod-vpc -> prod-db (protect prod data) -----
-    name     = "${var.environment_prefix}-deny-nonprod-to-db"
+    name     = "${local.name_prefix}-deny-nonprod-to-db"
     action   = "DENY"
     priority = 21
     protocol = "ANY"
@@ -395,7 +395,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 30: DENY team-a-dev -> team-b-staging -----
-    name     = "${var.environment_prefix}-deny-teama-dev-to-teamb-staging"
+    name     = "${local.name_prefix}-deny-teama-dev-to-teamb-staging"
     action   = "DENY"
     priority = 30
     protocol = "ANY"
@@ -407,7 +407,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 31: DENY team-b-staging -> team-a-dev (bidirectional) -----
-    name     = "${var.environment_prefix}-deny-teamb-staging-to-teama-dev"
+    name     = "${local.name_prefix}-deny-teamb-staging-to-teama-dev"
     action   = "DENY"
     priority = 31
     protocol = "ANY"
@@ -419,7 +419,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 32: PERMIT monitoring -> all namespaces TCP/9090,9091 -----
-    name     = "${var.environment_prefix}-monitoring-scrape"
+    name     = "${local.name_prefix}-monitoring-scrape"
     action   = "PERMIT"
     priority = 32
     protocol = "TCP"
@@ -449,7 +449,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 50: PERMIT all-clusters -> public internet via WebGroups -----
-    name     = "${var.environment_prefix}-egress-allowed"
+    name     = "${local.name_prefix}-egress-allowed"
     action   = "PERMIT"
     priority = 50
     protocol = "TCP"
@@ -466,7 +466,7 @@ resource "aviatrix_dcf_ruleset" "pattern_c" {
 
   rules {
     # ----- Priority 51: Sandbox relaxed egress (broader, still no prod data) -----
-    name     = "${var.environment_prefix}-sandbox-egress"
+    name     = "${local.name_prefix}-sandbox-egress"
     action   = "PERMIT"
     priority = 51
     protocol = "TCP"

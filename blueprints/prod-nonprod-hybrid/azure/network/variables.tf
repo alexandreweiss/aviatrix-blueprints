@@ -30,6 +30,11 @@ variable "azure_region" {
   default     = "East US"
 }
 
+variable "azure_subscription_id" {
+  description = "Azure subscription ID (used for ARM resource ID construction)"
+  type        = string
+}
+
 variable "resource_group_name" {
   description = "Azure Resource Group name"
   type        = string
@@ -72,7 +77,7 @@ variable "pod_cidr" {
 variable "environment_prefix" {
   description = "Prefix for all resource names"
   type        = string
-  default     = "patternc"
+  default     = "pc-azure"
 }
 
 variable "transit_gw_size" {
@@ -140,6 +145,12 @@ variable "teams" {
       nonprod_namespace = "team-b-staging"
     }
   }
+}
+
+variable "name_suffix" {
+  description = "Optional suffix appended to all resource names for uniqueness (e.g., 'ab12')"
+  type        = string
+  default     = ""
 }
 
 variable "manage_dcf" {

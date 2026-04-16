@@ -14,7 +14,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -41,8 +41,14 @@ module "eks_prod" {
   vpc_id     = data.terraform_remote_state.network.outputs.prod_vpc_id
   subnet_ids = data.terraform_remote_state.network.outputs.prod_private_subnets
 
-  cluster_endpoint_public_access  = true
+  # API server endpoint access — toggle via enable_private_endpoint
+  cluster_endpoint_public_access  = var.enable_private_endpoint ? false : true
   cluster_endpoint_private_access = true
+
+  # Control plane logging — toggle via enable_control_plane_logging
+  cluster_enabled_log_types = var.enable_control_plane_logging ? [
+    "audit", "api", "authenticator", "controllerManager", "scheduler"
+  ] : []
 
   # VPC CNI custom networking for pod CIDR
   cluster_addons = {
@@ -85,11 +91,12 @@ module "eks_prod" {
   }
 }
 
-#####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.eks_prod.cluster_arn
-  use_csp_credentials = true
-}
+# #####################
+# # Aviatrix Kubernetes Cluster Onboarding
+# # Commented out — clusters already registered on controller from prior deploy.
+# # Uncomment for fresh deployments.
+# #####################
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.eks_prod.cluster_arn
+#   use_csp_credentials = true
+# }

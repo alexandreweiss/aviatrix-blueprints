@@ -24,7 +24,7 @@ provider "aws" {
 resource "aviatrix_transit_gateway" "main" {
   cloud_type   = 1 # AWS
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-transit"
+  gw_name      = "${local.name_prefix}-transit"
   vpc_id       = aviatrix_vpc.transit.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.transit_gw_size
@@ -47,7 +47,7 @@ resource "aviatrix_transit_gateway" "main" {
 resource "aviatrix_vpc" "transit" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-transit"
+  name                 = "${local.name_prefix}-transit"
   region               = var.aws_region
   cidr                 = var.transit_cidr
   aviatrix_transit_vpc = true
@@ -60,7 +60,7 @@ resource "aviatrix_vpc" "transit" {
 resource "aviatrix_vpc" "prod" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-prod"
+  name                 = "${local.name_prefix}-prod"
   region               = var.aws_region
   cidr                 = var.prod_vpc_cidr
   aviatrix_firenet_vpc = false
@@ -69,17 +69,54 @@ resource "aviatrix_vpc" "prod" {
 resource "aviatrix_spoke_gateway" "prod" {
   cloud_type   = 1
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-prod-spoke"
+  gw_name      = "${local.name_prefix}-prod-spoke"
   vpc_id       = aviatrix_vpc.prod.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.spoke_gw_size
   subnet       = aviatrix_vpc.prod.public_subnets[0].cidr
 
-
-  single_ip_snat                   = true
-
   ha_gw_size = var.enable_ha ? var.spoke_gw_size : null
   ha_subnet  = var.enable_ha ? aviatrix_vpc.prod.public_subnets[1].cidr : null
+}
+
+# Custom SNAT for prod pod traffic (100.64.0.0/16 -> spoke gateway IP)
+# Replaces single_ip_snat for precise control over east-west vs egress flows.
+# DCF sees POST-SNAT traffic, so use VPC SmartGroups for source matching.
+resource "aviatrix_gateway_snat" "prod_spoke_snat" {
+  gw_name   = aviatrix_spoke_gateway.prod.gw_name
+  snat_mode = "customized_snat"
+
+  # Pod CIDR to all destinations via transit (east-west)
+  snat_policy {
+    src_cidr   = var.pod_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = ""
+    connection = aviatrix_transit_gateway.main.gw_name
+    snat_ips   = aviatrix_spoke_gateway.prod.private_ip
+  }
+
+  # Pod CIDR to internet via eth0 (egress)
+  snat_policy {
+    src_cidr   = var.pod_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = aviatrix_spoke_gateway.prod.private_ip
+  }
+
+  # Node subnet to internet via eth0 (egress)
+  snat_policy {
+    src_cidr   = var.prod_vpc_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = aviatrix_spoke_gateway.prod.private_ip
+  }
+
+  depends_on = [aviatrix_spoke_transit_attachment.prod]
 }
 
 resource "aviatrix_spoke_transit_attachment" "prod" {
@@ -100,7 +137,7 @@ resource "aws_vpc_ipv4_cidr_block_association" "prod_pods" {
 resource "aviatrix_vpc" "nonprod" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-nonprod"
+  name                 = "${local.name_prefix}-nonprod"
   region               = var.aws_region
   cidr                 = var.nonprod_vpc_cidr
   aviatrix_firenet_vpc = false
@@ -109,17 +146,52 @@ resource "aviatrix_vpc" "nonprod" {
 resource "aviatrix_spoke_gateway" "nonprod" {
   cloud_type   = 1
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-nonprod-spoke"
+  gw_name      = "${local.name_prefix}-nonprod-spoke"
   vpc_id       = aviatrix_vpc.nonprod.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.spoke_gw_size
   subnet       = aviatrix_vpc.nonprod.public_subnets[0].cidr
 
-
-  single_ip_snat                   = true
-
   ha_gw_size = var.enable_ha ? var.spoke_gw_size : null
   ha_subnet  = var.enable_ha ? aviatrix_vpc.nonprod.public_subnets[1].cidr : null
+}
+
+# Custom SNAT for nonprod pod traffic (100.64.0.0/16 -> spoke gateway IP)
+resource "aviatrix_gateway_snat" "nonprod_spoke_snat" {
+  gw_name   = aviatrix_spoke_gateway.nonprod.gw_name
+  snat_mode = "customized_snat"
+
+  # Pod CIDR to all destinations via transit (east-west)
+  snat_policy {
+    src_cidr   = var.pod_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = ""
+    connection = aviatrix_transit_gateway.main.gw_name
+    snat_ips   = aviatrix_spoke_gateway.nonprod.private_ip
+  }
+
+  # Pod CIDR to internet via eth0 (egress)
+  snat_policy {
+    src_cidr   = var.pod_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = aviatrix_spoke_gateway.nonprod.private_ip
+  }
+
+  # Node subnet to internet via eth0 (egress)
+  snat_policy {
+    src_cidr   = var.nonprod_vpc_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = aviatrix_spoke_gateway.nonprod.private_ip
+  }
+
+  depends_on = [aviatrix_spoke_transit_attachment.nonprod]
 }
 
 resource "aviatrix_spoke_transit_attachment" "nonprod" {
@@ -140,7 +212,7 @@ resource "aws_vpc_ipv4_cidr_block_association" "nonprod_pods" {
 resource "aviatrix_vpc" "db" {
   cloud_type           = 1
   account_name         = var.aws_account_name
-  name                 = "${var.environment_prefix}-prod-db"
+  name                 = "${local.name_prefix}-prod-db"
   region               = var.aws_region
   cidr                 = var.db_spoke_cidr
   aviatrix_firenet_vpc = false
@@ -149,7 +221,7 @@ resource "aviatrix_vpc" "db" {
 resource "aviatrix_spoke_gateway" "db" {
   cloud_type   = 1
   account_name = var.aws_account_name
-  gw_name      = "${var.environment_prefix}-db-spoke"
+  gw_name      = "${local.name_prefix}-db-spoke"
   vpc_id       = aviatrix_vpc.db.vpc_id
   vpc_reg      = var.aws_region
   gw_size      = var.db_spoke_gw_size
@@ -189,5 +261,6 @@ resource "aws_route53_zone" "private" {
 }
 
 locals {
+  name_prefix = var.name_suffix != "" ? "${var.environment_prefix}-${var.name_suffix}" : var.environment_prefix
   dns_zone_id = var.route53_zone_id != "" ? var.route53_zone_id : aws_route53_zone.private[0].zone_id
 }

@@ -50,3 +50,34 @@ kubectl --context nonprod apply -f firewallpolicy-nonprod.yaml
 | 30-32 | Platform | Namespace isolation (Layer 2) |
 | 50-51 | Platform | Egress controls |
 | 70-99 | Teams (CRD) | Self-service rules |
+
+## Optional Hardening
+
+The nodes layer for both prod and nonprod includes opt-in recommendation toggles:
+
+```hcl
+# nodes/prod/terraform.tfvars (production — full hardening recommended)
+enable_network_policy           = true
+enable_gatekeeper               = true
+enable_external_secrets         = true
+enable_falco                    = true
+enable_prometheus_stack         = true
+enable_fluent_bit               = true
+enable_node_termination_handler = true
+enable_cluster_autoscaler       = true
+enable_velero                   = true
+
+# nodes/nonprod/terraform.tfvars (non-prod — lighter profile)
+enable_network_policy   = true
+enable_prometheus_stack = true
+```
+
+The cluster layer also supports:
+
+```hcl
+# clusters/prod/terraform.tfvars
+enable_private_endpoint      = true   # Private-only API (recommended for prod)
+enable_control_plane_logging = true   # Audit logs to CloudWatch
+```
+
+See `ARCHITECTURE-ANALYSIS.md` for full toggle reference and rationale.

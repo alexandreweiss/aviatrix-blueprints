@@ -31,6 +31,7 @@ provider "google" {
 }
 
 locals {
+  name_prefix   = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
   pod_cidr      = var.pod_cidr
   services_cidr = var.services_cidr
 }
@@ -41,17 +42,16 @@ locals {
 
 module "gcp_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "GCP"
   account = var.aviatrix_gcp_account_name
   region  = var.gcp_region
   cidr    = var.transit_cidr
   ha_gw   = false
 
-  # Enable Transit FireNet for future NGFW integration
-  enable_transit_firenet        = true
+  enable_transit_firenet        = false
   enable_egress_transit_firenet = false
 
   instance_size     = "n1-standard-2"
@@ -75,7 +75,7 @@ module "gcp_transit" {
 module "shared_vpc" {
   source = "../../../gcp-gke-multicluster/network/modules/gke-vpc"
 
-  name    = "${var.name_prefix}-shared"
+  name    = "${local.name_prefix}-shared"
   project = var.gcp_project
   region  = var.gcp_region
 
@@ -91,10 +91,10 @@ module "shared_vpc" {
 
 module "shared_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "GCP"
-  name       = "${var.name_prefix}-shared-spoke"
+  name       = "${local.name_prefix}-shared-spoke"
   account    = var.aviatrix_gcp_account_name
   region     = var.gcp_region
   transit_gw = module.gcp_transit.transit_gateway.gw_name

@@ -35,7 +35,8 @@ provider "aws" {
 }
 
 locals {
-  pod_cidr = var.pod_cidr
+  name_prefix = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
+  pod_cidr    = var.pod_cidr
 }
 
 #####################
@@ -44,9 +45,9 @@ locals {
 
 module "aws_transit" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
-  name    = "${var.name_prefix}-transit"
+  name    = "${local.name_prefix}-transit"
   cloud   = "AWS"
   account = var.aviatrix_aws_account_name
   region  = var.aws_region
@@ -80,7 +81,7 @@ module "shared_vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 
-  name = "${var.name_prefix}-shared-cluster"
+  name = "${local.name_prefix}-shared-cluster"
   cidr = var.shared_vpc_cidr
 
   azs             = ["${var.aws_region}a", "${var.aws_region}b"]
@@ -115,8 +116,10 @@ resource "aws_subnet" "pods" {
   cidr_block        = cidrsubnet(local.pod_cidr, 2, count.index)
   availability_zone = ["${var.aws_region}a", "${var.aws_region}b"][count.index]
 
+  depends_on = [module.shared_vpc]
+
   tags = {
-    Name        = "${var.name_prefix}-shared-pods-${["a", "b"][count.index]}"
+    Name        = "${local.name_prefix}-shared-pods-${["a", "b"][count.index]}"
     Environment = var.env
     Pattern     = "namespace-aas"
     Terraform   = "true"
@@ -129,10 +132,10 @@ resource "aws_subnet" "pods" {
 
 module "shared_spoke" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "~> 8.0"
+  version = "~> 8.2.0"
 
   cloud      = "AWS"
-  name       = "${var.name_prefix}-shared-spoke"
+  name       = "${local.name_prefix}-shared-spoke"
   account    = var.aviatrix_aws_account_name
   region     = var.aws_region
   transit_gw = module.aws_transit.transit_gateway.gw_name

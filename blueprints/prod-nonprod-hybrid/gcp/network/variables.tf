@@ -72,7 +72,7 @@ variable "pod_cidr" {
 variable "environment_prefix" {
   description = "Prefix for all resource names"
   type        = string
-  default     = "patternc"
+  default     = "pc-gcp"
 }
 
 variable "transit_gw_size" {
@@ -140,6 +140,12 @@ variable "teams" {
       nonprod_namespace = "team-b-staging"
     }
   }
+}
+
+variable "name_suffix" {
+  description = "Optional suffix appended to all resource names for uniqueness (e.g., 'ab12')"
+  type        = string
+  default     = ""
 }
 
 variable "manage_dcf" {

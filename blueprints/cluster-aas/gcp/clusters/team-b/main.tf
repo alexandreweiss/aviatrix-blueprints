@@ -8,7 +8,7 @@ terraform {
   required_providers {
     google      = { source = "hashicorp/google", version = "~> 6.0" }
     google-beta = { source = "hashicorp/google-beta", version = "~> 6.0" }
-    aviatrix    = { source = "AviatrixSystems/aviatrix", version = "~> 8.2" }
+    aviatrix    = { source = "AviatrixSystems/aviatrix", version = "~> 8.2.0" }
     kubernetes  = { source = "hashicorp/kubernetes", version = "~> 2.0" }
   }
 }
@@ -75,10 +75,10 @@ module "team_b_gke" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.team_b_gke.cluster_id
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.team_b_gke.cluster_id
+#   use_csp_credentials = true
+# }
 
 #####################
 # Outputs

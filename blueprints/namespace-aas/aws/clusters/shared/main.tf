@@ -22,7 +22,7 @@ terraform {
     }
     aviatrix = {
       source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
+      version = "~> 8.2.0"
     }
   }
 }
@@ -52,16 +52,20 @@ module "shared_eks" {
   vpc_id     = data.terraform_remote_state.network.outputs.shared_vpc_id
   subnet_ids = data.terraform_remote_state.network.outputs.shared_private_subnets
 
-  cluster_endpoint_public_access = var.cluster_endpoint_public_access
+  # API server endpoint — enable_private_endpoint overrides cluster_endpoint_public_access
+  cluster_endpoint_public_access  = var.enable_private_endpoint ? false : var.cluster_endpoint_public_access
+  cluster_endpoint_private_access = true
+
+  # Control plane logging — toggle via enable_control_plane_logging
+  cluster_enabled_log_types = var.enable_control_plane_logging ? [
+    "audit", "api", "authenticator", "controllerManager", "scheduler"
+  ] : []
 
   # IRSA (IAM Roles for Service Accounts) — enabled by default in v20+
   # This is the AWS equivalent of Azure Workload Identity and GCP Workload Identity Federation
 
   # Cluster addons
   cluster_addons = {
-    coredns = {
-      most_recent = true
-    }
     kube-proxy = {
       most_recent = true
     }
@@ -77,6 +81,8 @@ module "shared_eks" {
     }
   }
 
+  enable_cluster_creator_admin_permissions = true
+
   tags = {
     Environment = "prod"
     Pattern     = "namespace-aas"
@@ -88,7 +94,7 @@ module "shared_eks" {
 # Aviatrix Kubernetes Cluster Onboarding
 #####################
 
-resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = module.shared_eks.cluster_arn
-  use_csp_credentials = true
-}
+# resource "aviatrix_kubernetes_cluster" "this" {
+#   cluster_id          = module.shared_eks.cluster_arn
+#   use_csp_credentials = true
+# }

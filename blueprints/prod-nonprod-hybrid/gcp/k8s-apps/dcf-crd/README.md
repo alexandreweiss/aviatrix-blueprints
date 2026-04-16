@@ -58,3 +58,7 @@ kubectl --context nonprod apply -f firewallpolicy-nonprod.yaml
 | 30-32 | Platform | Namespace isolation (Layer 2) |
 | 50-51 | Platform | Egress controls |
 | 70-99 | Teams (CRD) | Self-service rules |
+
+## Optional Hardening
+
+The AWS implementation includes opt-in recommendation toggles (Calico, Gatekeeper, Falco, Prometheus, Velero, etc.) in the nodes and clusters layers. GCP variants can follow the same pattern using the shared module at `modules/recommendations/`. See `ARCHITECTURE-ANALYSIS.md` for the full toggle reference.

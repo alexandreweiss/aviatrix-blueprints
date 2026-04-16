@@ -44,3 +44,7 @@ All teams share a single GKE cluster. Network isolation between namespaces is en
 
 - **RBAC is NOT a hard security boundary** — it prevents accidental access but can be bypassed. DCF enforces network isolation at the infrastructure level.
 - `k8s_cluster_id` is required alongside `k8s_namespace` in SmartGroups to prevent cross-cluster namespace collisions.
+
+## Optional Hardening
+
+The AWS implementation includes opt-in recommendation toggles (Calico, Gatekeeper, Falco, Prometheus, etc.) in the nodes layer. Azure/GCP variants can follow the same pattern using the shared module at `modules/recommendations/`. See `ARCHITECTURE-ANALYSIS.md` for the full toggle reference.

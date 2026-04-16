@@ -42,6 +42,9 @@ output "team_a_public_subnets" {
   value       = aviatrix_vpc.team_a.public_subnets
 }
 
+# Backward-compatible outputs for downstream layers (clusters, nodes)
+# aviatrix_vpc public_subnets[1] is used as the AKS node subnet
+# (public_subnets[0] is reserved for the Aviatrix spoke gateway)
 output "team_a_aks_system_subnet_id" {
   description = "Team-A AKS system node pool subnet ID"
   value       = aviatrix_vpc.team_a.public_subnets[1].subnet_id
@@ -200,19 +203,19 @@ output "private_dns_zone_resource_group" {
 #####################
 
 output "name_prefix" {
-  value = var.name_prefix
+  value = local.name_prefix
 }
 
 output "team_a_cluster_name" {
-  value = "${var.name_prefix}-team-a"
+  value = "${local.name_prefix}-team-a"
 }
 
 output "team_b_cluster_name" {
-  value = "${var.name_prefix}-team-b"
+  value = "${local.name_prefix}-team-b"
 }
 
 output "team_c_cluster_name" {
-  value = "${var.name_prefix}-team-c"
+  value = "${local.name_prefix}-team-c"
 }
 
 #####################

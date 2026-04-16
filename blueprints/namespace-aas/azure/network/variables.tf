@@ -98,6 +98,12 @@ variable "approved_web_domains" {
   ]
 }
 
+variable "name_suffix" {
+  description = "Optional suffix appended to all resource names for uniqueness (e.g., 'ab12')"
+  type        = string
+  default     = ""
+}
+
 variable "manage_dcf" {
   description = "Whether this blueprint manages DCF enable/disable lifecycle. Set to false if DCF is pre-enabled by another blueprint or the UI."
   type        = bool

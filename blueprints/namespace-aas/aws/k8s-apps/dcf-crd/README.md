@@ -37,3 +37,19 @@ All teams share a single EKS cluster. Network isolation between namespaces is en
 
 - **RBAC is NOT a hard security boundary** — it prevents accidental access but can be bypassed. DCF enforces network isolation at the infrastructure level.
 - `k8s_cluster_id` is required alongside `k8s_namespace` in SmartGroups to prevent cross-cluster namespace collisions.
+
+## Optional Hardening
+
+The nodes layer includes opt-in recommendation toggles that complement DCF:
+
+```hcl
+# nodes/shared/terraform.tfvars
+enable_network_policy   = true   # Calico NetworkPolicy (defense-in-depth alongside DCF)
+enable_gatekeeper       = true   # OPA Gatekeeper (enforce image policies, resource limits)
+enable_external_secrets = true   # Sync secrets from AWS Secrets Manager
+enable_falco            = true   # Runtime threat detection
+enable_prometheus_stack = true   # Monitoring (Prometheus + Grafana)
+enable_fluent_bit       = true   # Log aggregation to CloudWatch
+```
+
+See `ARCHITECTURE-ANALYSIS.md` for full toggle reference and rationale.
