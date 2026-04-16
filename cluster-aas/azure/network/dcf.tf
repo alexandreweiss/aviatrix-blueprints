@@ -19,7 +19,7 @@
 #####################
 
 resource "aviatrix_distributed_firewalling_config" "main" {
-  count                          = var.disable_dcf_on_destroy ? 1 : 0
+  count                          = var.manage_dcf ? 1 : 0
   enable_distributed_firewalling = true
 }
 
@@ -32,6 +32,7 @@ resource "aviatrix_k8s_config" "main" {
 
 # DCF enablement is async — controller needs time to activate
 resource "time_sleep" "wait_for_dcf" {
+  count           = var.manage_dcf ? 1 : 0
   depends_on      = [aviatrix_distributed_firewalling_config.main]
   create_duration = "15s"
 }

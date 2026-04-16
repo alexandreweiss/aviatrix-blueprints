@@ -86,8 +86,8 @@ variable "name_suffix" {
   default     = ""
 }
 
-variable "disable_dcf_on_destroy" {
-  description = "Whether to disable DCF globally when this pattern is destroyed. Default false — DCF stays enabled."
+variable "manage_dcf" {
+  description = "Whether this blueprint manages DCF enable/disable lifecycle. Set to false if DCF is pre-enabled by another blueprint or the UI."
   type        = bool
-  default     = false
+  default     = true
 }

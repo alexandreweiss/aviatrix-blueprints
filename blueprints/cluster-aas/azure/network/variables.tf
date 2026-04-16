@@ -79,3 +79,9 @@ variable "db_private_ip" {
   type        = string
   default     = "10.35.0.10"
 }
+
+variable "manage_dcf" {
+  description = "Whether this blueprint manages DCF enable/disable lifecycle. Set to false if DCF is pre-enabled by another blueprint or the UI."
+  type        = bool
+  default     = true
+}

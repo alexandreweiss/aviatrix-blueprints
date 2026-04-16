@@ -26,21 +26,6 @@
 #   - DCF sees POST-SNAT traffic — use VPC SmartGroups for source, hostname for dest
 #####################
 
-terraform {
-  required_version = ">= 1.5"
-
-  required_providers {
-    aviatrix = {
-      source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2.0"
-    }
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
 provider "aviatrix" {
   skip_version_validation = true
 }
