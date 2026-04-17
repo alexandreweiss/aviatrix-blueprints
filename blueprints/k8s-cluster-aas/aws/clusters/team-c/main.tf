@@ -70,6 +70,23 @@ module "team_c_eks" {
 
   enable_cluster_creator_admin_permissions = true
 
+  # Grant Aviatrix controller read access for K8s inventory (namespaces, pods, DCF CRDs)
+  access_entries = {
+    aviatrix_controller = {
+      kubernetes_groups = ["avx-controller"]
+      principal_arn     = data.aviatrix_account.aws_account.aws_role_arn
+
+      policy_associations = {
+        view = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
   tags = {
     Environment = "demo"
     Team        = "team-c"

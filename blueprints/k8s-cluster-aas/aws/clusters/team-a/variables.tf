@@ -1,3 +1,8 @@
+variable "aviatrix_aws_account_name" {
+  description = "Aviatrix access account name for AWS (used to grant controller EKS access)"
+  type        = string
+}
+
 variable "kubernetes_version" {
   description = "Kubernetes version for the EKS cluster"
   type        = string
