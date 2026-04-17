@@ -18,7 +18,15 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.0"
     }
+    aviatrix = {
+      source  = "AviatrixSystems/aviatrix"
+      version = "~> 8.2.0"
+    }
   }
+}
+
+provider "aviatrix" {
+  skip_version_validation = true
 }
 
 provider "aws" {
@@ -41,6 +49,15 @@ provider "helm" {
     cluster_ca_certificate = base64decode(data.terraform_remote_state.cluster.outputs.cluster_certificate_authority_data)
     token                  = data.aws_eks_cluster_auth.this.token
   }
+}
+
+#####################
+# Aviatrix Kubernetes Cluster Onboarding
+#####################
+
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = data.terraform_remote_state.cluster.outputs.cluster_name
+  use_csp_credentials = true
 }
 
 #####################

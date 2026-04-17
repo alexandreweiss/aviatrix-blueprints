@@ -28,7 +28,15 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.0"
     }
+    aviatrix = {
+      source  = "AviatrixSystems/aviatrix"
+      version = "~> 8.2.0"
+    }
   }
+}
+
+provider "aviatrix" {
+  skip_version_validation = true
 }
 
 provider "aws" {
@@ -60,6 +68,17 @@ provider "helm" {
 # These enable namespace-level and pod-label-level policies applied via kubectl.
 # NOTE: CRDs are optional in Pattern A but available if teams want them.
 #####################
+
+#####################
+# Aviatrix Kubernetes Cluster Onboarding
+# Registers the EKS cluster with the Aviatrix controller so DCF can
+# inventory namespaces and enforce FirewallPolicy CRDs.
+#####################
+
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = data.terraform_remote_state.cluster.outputs.cluster_name
+  use_csp_credentials = true
+}
 
 resource "helm_release" "k8s_firewall" {
   name       = "k8s-firewall"

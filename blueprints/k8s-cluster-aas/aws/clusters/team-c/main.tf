@@ -79,15 +79,6 @@ module "team_c_eks" {
 }
 
 #####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-# resource "aviatrix_kubernetes_cluster" "this" {
-#   cluster_id          = module.team_c_eks.cluster_arn
-#   use_csp_credentials = true
-# }
-
-#####################
 # IRSA - ALB Controller
 #####################
 
