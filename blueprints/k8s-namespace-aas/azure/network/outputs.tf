@@ -110,7 +110,7 @@ output "private_dns_zone_resource_group" {
 
 output "shared_cluster_name" {
   description = "Shared AKS cluster name"
-  value       = var.k8s_cluster_name
+  value       = local.k8s_cluster_name
 }
 
 output "azure_region" {

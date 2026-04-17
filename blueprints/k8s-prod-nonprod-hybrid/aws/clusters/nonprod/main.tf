@@ -27,7 +27,7 @@ provider "aviatrix" {
 }
 
 locals {
-  cluster_name = "${var.environment_prefix}-nonprod"
+  cluster_name = "${data.terraform_remote_state.network.outputs.name_prefix}-nonprod"
 }
 
 module "eks_nonprod" {
@@ -67,7 +67,7 @@ module "eks_nonprod" {
 
   eks_managed_node_groups = {
     nonprod_workers = {
-      name           = "${var.environment_prefix}-nonprod-workers"
+      name           = "${data.terraform_remote_state.network.outputs.name_prefix}-nonprod-workers"
       instance_types = ["t3.large"]
       min_size       = 1
       max_size       = 3

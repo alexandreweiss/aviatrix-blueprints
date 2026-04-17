@@ -25,7 +25,7 @@ provider "google" {
 module "gke_nonprod" {
   source = "../../../../gcp-gke-multicluster/modules/gke-cluster"
 
-  cluster_name = "${var.environment_prefix}-nonprod"
+  cluster_name = "${data.terraform_remote_state.network.outputs.name_prefix}-nonprod"
   project_id   = var.gcp_project_id
   region       = var.gcp_region
 

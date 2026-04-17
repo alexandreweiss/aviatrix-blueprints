@@ -16,7 +16,7 @@ pod_cidr       = "100.64.0.0/16"
 
 private_dns_zone_name = "azure-naas.aviatrixdemo.local"
 
-k8s_cluster_name = "naas-shared-aks"
+k8s_cluster_suffix = "shared-aks"
 
 geo_block_countries = ["CN", "RU", "KP", "IR"]
 

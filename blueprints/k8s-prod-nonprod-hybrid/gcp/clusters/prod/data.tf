@@ -2,6 +2,13 @@
 # Pattern C: GKE Production Cluster — Data Sources
 # -----------------------------------------------------------------------------
 
+data "terraform_remote_state" "network" {
+  backend = "local"
+  config = {
+    path = "../../network/terraform.tfstate"
+  }
+}
+
 data "google_project" "current" {
   project_id = var.gcp_project_id
 }

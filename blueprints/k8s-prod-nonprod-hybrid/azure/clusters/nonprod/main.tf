@@ -22,7 +22,7 @@ provider "azurerm" {
 module "aks_nonprod" {
   source = "../../../../azure-aks-multicluster/modules/aks-cluster"
 
-  cluster_name        = "${var.environment_prefix}-nonprod"
+  cluster_name        = "${data.terraform_remote_state.network.outputs.name_prefix}-nonprod"
   resource_group_name = var.resource_group_name
   location            = var.azure_region
   kubernetes_version  = var.kubernetes_version

@@ -64,10 +64,10 @@ variable "private_dns_zone_name" {
 # DCF
 #####################
 
-variable "k8s_cluster_name" {
-  description = "Name of the shared EKS cluster (used in SmartGroup k8s_cluster_id)"
+variable "k8s_cluster_suffix" {
+  description = "Suffix for the shared EKS cluster name (appended to name_prefix)"
   type        = string
-  default     = "naas-shared-eks"
+  default     = "shared-eks"
 }
 
 variable "team_namespaces" {

@@ -19,7 +19,7 @@ master_ipv4_cidr_block = "172.16.0.0/28"
 
 dns_private_zone_name = "gcp-naas.aviatrixdemo.local"
 
-k8s_cluster_name = "naas-shared-gke"
+k8s_cluster_suffix = "shared-gke"
 
 geo_block_countries = ["CN", "RU", "KP", "IR"]
 

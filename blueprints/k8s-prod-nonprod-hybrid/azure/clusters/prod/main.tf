@@ -22,7 +22,7 @@ provider "azurerm" {
 module "aks_prod" {
   source = "../../../../azure-aks-multicluster/modules/aks-cluster"
 
-  cluster_name        = "${var.environment_prefix}-prod"
+  cluster_name        = "${data.terraform_remote_state.network.outputs.name_prefix}-prod"
   resource_group_name = var.resource_group_name
   location            = var.azure_region
   kubernetes_version  = var.kubernetes_version

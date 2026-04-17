@@ -40,8 +40,9 @@ resource "random_id" "suffix" {
 }
 
 locals {
-  name_prefix = var.random_suffix ? "${var.name_prefix}-${random_id.suffix[0].hex}" : var.name_prefix
-  pod_cidr    = var.pod_cidr
+  name_prefix      = var.random_suffix ? "${var.name_prefix}-${random_id.suffix[0].hex}" : var.name_prefix
+  pod_cidr         = var.pod_cidr
+  k8s_cluster_name = "${local.name_prefix}-${var.k8s_cluster_suffix}"
 }
 
 #####################

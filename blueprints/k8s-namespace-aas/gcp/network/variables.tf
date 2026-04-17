@@ -81,10 +81,10 @@ variable "dns_private_zone_name" {
 # DCF
 #####################
 
-variable "k8s_cluster_name" {
-  description = "Name of the shared GKE cluster (used in SmartGroup k8s_cluster_id)"
+variable "k8s_cluster_suffix" {
+  description = "Suffix for the shared GKE cluster name (appended to name_prefix)"
   type        = string
-  default     = "naas-shared-gke"
+  default     = "shared-gke"
 }
 
 variable "team_namespaces" {

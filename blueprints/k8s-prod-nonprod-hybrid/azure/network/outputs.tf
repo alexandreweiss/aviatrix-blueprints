@@ -79,3 +79,8 @@ output "sg_nonprod_vpc_uuid" {
 output "sg_prod_db_uuid" {
   value = aviatrix_smart_group.prod_db.uuid
 }
+
+output "name_prefix" {
+  description = "Name prefix with random suffix"
+  value       = local.name_prefix
+}

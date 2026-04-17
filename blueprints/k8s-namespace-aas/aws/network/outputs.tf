@@ -82,7 +82,7 @@ output "private_dns_zone_name" {
 
 output "shared_cluster_name" {
   description = "Shared EKS cluster name"
-  value       = var.k8s_cluster_name
+  value       = local.k8s_cluster_name
 }
 
 output "aws_region" {
