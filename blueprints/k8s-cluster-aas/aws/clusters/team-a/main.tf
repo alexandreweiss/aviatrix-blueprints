@@ -150,6 +150,11 @@ output "cluster_name" {
   value       = module.team_a_eks.cluster_name
 }
 
+output "cluster_arn" {
+  description = "EKS cluster ARN"
+  value       = module.team_a_eks.cluster_arn
+}
+
 output "cluster_endpoint" {
   description = "EKS cluster API endpoint"
   value       = module.team_a_eks.cluster_endpoint

@@ -76,7 +76,7 @@ provider "helm" {
 #####################
 
 resource "aviatrix_kubernetes_cluster" "this" {
-  cluster_id          = data.terraform_remote_state.cluster.outputs.cluster_name
+  cluster_id          = data.terraform_remote_state.cluster.outputs.cluster_arn
   use_csp_credentials = true
 }
 
