@@ -24,19 +24,11 @@ terraform {
       source  = "hashicorp/azuread"
       version = "~> 3.0"
     }
-    aviatrix = {
-      source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2.0"
-    }
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.0"
     }
   }
-}
-
-provider "aviatrix" {
-  skip_version_validation = true
 }
 
 provider "azurerm" {
@@ -99,11 +91,3 @@ module "shared_aks" {
   }
 }
 
-#####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-# resource "aviatrix_kubernetes_cluster" "this" {
-#   cluster_id          = module.shared_aks.cluster_id
-#   use_csp_credentials = true
-# }

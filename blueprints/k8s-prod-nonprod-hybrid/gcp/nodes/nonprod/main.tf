@@ -19,12 +19,20 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.25"
     }
+    aviatrix = {
+      source  = "AviatrixSystems/aviatrix"
+      version = "~> 8.2.0"
+    }
   }
 }
 
 provider "google" {
   project = var.gcp_project_id
   region  = var.gcp_region
+}
+
+provider "aviatrix" {
+  skip_version_validation = true
 }
 
 provider "helm" {
@@ -39,6 +47,15 @@ provider "kubernetes" {
   host                   = "https://${var.cluster_endpoint}"
   cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
   token                  = data.google_client_config.current.access_token
+}
+
+# ---------------------------------------------------------------------------
+# Aviatrix Kubernetes Cluster Onboarding
+# ---------------------------------------------------------------------------
+
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = var.cluster_id
+  use_csp_credentials = true
 }
 
 # ---------------------------------------------------------------------------

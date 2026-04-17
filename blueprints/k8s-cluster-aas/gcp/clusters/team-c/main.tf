@@ -8,7 +8,6 @@ terraform {
   required_providers {
     google      = { source = "hashicorp/google", version = "~> 6.0" }
     google-beta = { source = "hashicorp/google-beta", version = "~> 6.0" }
-    aviatrix    = { source = "AviatrixSystems/aviatrix", version = "~> 8.2.0" }
     kubernetes  = { source = "hashicorp/kubernetes", version = "~> 2.0" }
   }
 }
@@ -21,10 +20,6 @@ provider "google" {
 provider "google-beta" {
   project = local.gcp_project
   region  = local.gcp_region
-}
-
-provider "aviatrix" {
-  skip_version_validation = true
 }
 
 locals {
@@ -72,15 +67,6 @@ module "team_c_gke" {
 }
 
 #####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-# resource "aviatrix_kubernetes_cluster" "this" {
-#   cluster_id          = module.team_c_gke.cluster_id
-#   use_csp_credentials = true
-# }
-
-#####################
 # Outputs
 #####################
 
@@ -90,3 +76,4 @@ output "cluster_ca_certificate" { value = module.team_c_gke.cluster_ca_certifica
 output "cluster_location" { value = module.team_c_gke.cluster_location }
 output "external_dns_service_account_email" { value = module.team_c_gke.external_dns_service_account_email }
 output "external_dns_helm_values" { value = module.team_c_gke.external_dns_helm_values }
+output "cluster_id" { value = module.team_c_gke.cluster_id }

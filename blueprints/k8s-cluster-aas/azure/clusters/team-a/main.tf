@@ -18,19 +18,11 @@ terraform {
       source  = "hashicorp/azuread"
       version = "~> 3.0"
     }
-    aviatrix = {
-      source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2.0"
-    }
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.0"
     }
   }
-}
-
-provider "aviatrix" {
-  skip_version_validation = true
 }
 
 provider "azurerm" {
@@ -87,15 +79,6 @@ module "team_a_aks" {
 }
 
 #####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-# resource "aviatrix_kubernetes_cluster" "this" {
-#   cluster_id          = module.team_a_aks.cluster_id
-#   use_csp_credentials = true
-# }
-
-#####################
 # Outputs
 #####################
 
@@ -131,4 +114,9 @@ output "external_dns_helm_values" {
 output "kube_config_raw" {
   value     = module.team_a_aks.kube_config_raw
   sensitive = true
+}
+
+output "cluster_id" {
+  description = "AKS cluster ID for Aviatrix onboarding"
+  value       = module.team_a_aks.cluster_id
 }

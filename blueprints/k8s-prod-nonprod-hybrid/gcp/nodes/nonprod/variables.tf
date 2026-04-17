@@ -34,6 +34,11 @@ variable "cluster_ca_certificate" {
   type        = string
 }
 
+variable "cluster_id" {
+  description = "GKE non-production cluster ID for Aviatrix onboarding"
+  type        = string
+}
+
 variable "dns_zone_name" {
   description = "Cloud DNS private zone name"
   type        = string

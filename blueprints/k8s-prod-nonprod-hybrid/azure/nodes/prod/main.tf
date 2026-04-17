@@ -19,11 +19,19 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.25"
     }
+    aviatrix = {
+      source  = "AviatrixSystems/aviatrix"
+      version = "~> 8.2.0"
+    }
   }
 }
 
 provider "azurerm" {
   features {}
+}
+
+provider "aviatrix" {
+  skip_version_validation = true
 }
 
 provider "helm" {
@@ -40,6 +48,15 @@ provider "kubernetes" {
   client_certificate     = base64decode(data.azurerm_kubernetes_cluster.prod.kube_config[0].client_certificate)
   client_key             = base64decode(data.azurerm_kubernetes_cluster.prod.kube_config[0].client_key)
   cluster_ca_certificate = base64decode(data.azurerm_kubernetes_cluster.prod.kube_config[0].cluster_ca_certificate)
+}
+
+# ---------------------------------------------------------------------------
+# Aviatrix Kubernetes Cluster Onboarding
+# ---------------------------------------------------------------------------
+
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = var.cluster_id
+  use_csp_credentials = true
 }
 
 # ---------------------------------------------------------------------------

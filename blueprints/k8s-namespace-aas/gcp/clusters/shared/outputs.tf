@@ -31,3 +31,8 @@ output "external_dns_service_account_email" {
   description = "Service account email for ExternalDNS Workload Identity Federation"
   value       = module.shared_gke.external_dns_service_account_email
 }
+
+output "cluster_id" {
+  description = "GKE cluster ID for Aviatrix onboarding"
+  value       = module.shared_gke.cluster_id
+}

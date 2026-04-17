@@ -12,19 +12,11 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.80"
     }
-    aviatrix = {
-      source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2.0"
-    }
   }
 }
 
 provider "azurerm" {
   features {}
-}
-
-provider "aviatrix" {
-  skip_version_validation = true
 }
 
 module "aks_prod" {
@@ -68,11 +60,3 @@ module "aks_prod" {
   }
 }
 
-#####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-# resource "aviatrix_kubernetes_cluster" "this" {
-#   cluster_id          = module.aks_prod.cluster_id
-#   use_csp_credentials = true
-# }

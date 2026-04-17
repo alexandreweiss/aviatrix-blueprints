@@ -24,6 +24,11 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "cluster_id" {
+  description = "AKS non-production cluster ID for Aviatrix onboarding"
+  type        = string
+}
+
 variable "kube_config" {
   description = "AKS non-production cluster kubeconfig (raw)"
   type        = string

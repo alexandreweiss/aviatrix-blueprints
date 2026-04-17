@@ -14,20 +14,12 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
-    aviatrix = {
-      source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2.0"
-    }
   }
 }
 
 provider "google" {
   project = var.gcp_project_id
   region  = var.gcp_region
-}
-
-provider "aviatrix" {
-  skip_version_validation = true
 }
 
 module "gke_nonprod" {
@@ -84,11 +76,3 @@ module "gke_nonprod" {
   }
 }
 
-#####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-# resource "aviatrix_kubernetes_cluster" "this" {
-#   cluster_id          = module.gke_nonprod.cluster_id
-#   use_csp_credentials = true
-# }

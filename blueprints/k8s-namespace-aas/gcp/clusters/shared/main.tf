@@ -24,10 +24,6 @@ terraform {
       source  = "hashicorp/google-beta"
       version = "~> 6.0"
     }
-    aviatrix = {
-      source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2.0"
-    }
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.0"
@@ -43,10 +39,6 @@ provider "google" {
 provider "google-beta" {
   project = local.gcp_project
   region  = local.gcp_region
-}
-
-provider "aviatrix" {
-  skip_version_validation = true
 }
 
 locals {
@@ -109,11 +101,3 @@ module "shared_gke" {
   }
 }
 
-#####################
-# Aviatrix Kubernetes Cluster Onboarding
-#####################
-
-# resource "aviatrix_kubernetes_cluster" "this" {
-#   cluster_id          = module.shared_gke.cluster_id
-#   use_csp_credentials = true
-# }

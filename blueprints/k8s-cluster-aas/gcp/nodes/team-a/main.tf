@@ -17,12 +17,17 @@ terraform {
     google     = { source = "hashicorp/google", version = "~> 6.0" }
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.0" }
     helm       = { source = "hashicorp/helm", version = "~> 2.0" }
+    aviatrix   = { source = "AviatrixSystems/aviatrix", version = "~> 8.2.0" }
   }
 }
 
 provider "google" {
   project = local.gcp_project
   region  = local.gcp_region
+}
+
+provider "aviatrix" {
+  skip_version_validation = true
 }
 
 locals {
@@ -48,6 +53,15 @@ provider "helm" {
       command     = "gke-gcloud-auth-plugin"
     }
   }
+}
+
+#####################
+# Aviatrix Kubernetes Cluster Onboarding
+#####################
+
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = data.terraform_remote_state.cluster.outputs.cluster_id
+  use_csp_credentials = true
 }
 
 #####################

@@ -9,10 +9,15 @@ terraform {
     azurerm    = { source = "hashicorp/azurerm", version = "~> 4.0" }
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.0" }
     helm       = { source = "hashicorp/helm", version = "~> 2.0" }
+    aviatrix   = { source = "AviatrixSystems/aviatrix", version = "~> 8.2.0" }
   }
 }
 
 provider "azurerm" { features {} }
+
+provider "aviatrix" {
+  skip_version_validation = true
+}
 
 provider "kubernetes" {
   host                   = data.terraform_remote_state.cluster.outputs.cluster_endpoint
@@ -34,6 +39,15 @@ provider "helm" {
       args = ["aks", "get-credentials", "--resource-group", data.terraform_remote_state.network.outputs.team_b_resource_group_name, "--name", data.terraform_remote_state.cluster.outputs.cluster_name, "--format", "exec-credential"]
     }
   }
+}
+
+#####################
+# Aviatrix Kubernetes Cluster Onboarding
+#####################
+
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = data.terraform_remote_state.cluster.outputs.cluster_id
+  use_csp_credentials = true
 }
 
 resource "helm_release" "k8s_firewall" {
