@@ -22,7 +22,7 @@ variable "environment_prefix" {
 variable "kubernetes_version" {
   description = "AKS Kubernetes version"
   type        = string
-  default     = "1.29"
+  default     = "1.35"
 }
 
 variable "vnet_id" {
