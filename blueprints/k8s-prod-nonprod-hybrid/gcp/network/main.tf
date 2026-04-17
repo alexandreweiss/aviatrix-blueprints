@@ -20,8 +20,13 @@ provider "google" {
   region  = var.gcp_region
 }
 
+resource "random_id" "suffix" {
+  count       = var.random_suffix ? 1 : 0
+  byte_length = 2
+}
+
 locals {
-  name_prefix = var.name_suffix != "" ? "${var.environment_prefix}-${var.name_suffix}" : var.environment_prefix
+  name_prefix = var.random_suffix ? "${var.environment_prefix}-${random_id.suffix[0].hex}" : var.environment_prefix
 }
 
 # ---------------------------------------------------------------------------

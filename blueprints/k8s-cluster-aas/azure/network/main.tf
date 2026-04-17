@@ -39,8 +39,13 @@ provider "azurerm" {
   subscription_id = var.azure_subscription_id
 }
 
+resource "random_id" "suffix" {
+  count       = var.random_suffix ? 1 : 0
+  byte_length = 2
+}
+
 locals {
-  name_prefix = var.name_suffix != "" ? "${var.name_prefix}-${var.name_suffix}" : var.name_prefix
+  name_prefix = var.random_suffix ? "${var.name_prefix}-${random_id.suffix[0].hex}" : var.name_prefix
   pod_cidr    = var.pod_cidr
 
   teams = {

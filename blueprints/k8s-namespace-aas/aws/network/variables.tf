@@ -93,10 +93,10 @@ variable "approved_web_domains" {
   ]
 }
 
-variable "name_suffix" {
-  description = "Optional suffix appended to all resource names for uniqueness (e.g., 'ab12')"
-  type        = string
-  default     = ""
+variable "random_suffix" {
+  description = "Append a random suffix to all resource names for uniqueness. Set to false for deterministic naming."
+  type        = bool
+  default     = true
 }
 
 variable "manage_dcf" {

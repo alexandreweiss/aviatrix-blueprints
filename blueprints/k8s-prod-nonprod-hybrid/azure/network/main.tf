@@ -19,6 +19,11 @@ provider "azurerm" {
   features {}
 }
 
+resource "random_id" "suffix" {
+  count       = var.random_suffix ? 1 : 0
+  byte_length = 2
+}
+
 # ---------------------------------------------------------------------------
 # Transit VNet + Gateway
 # ---------------------------------------------------------------------------
@@ -172,7 +177,7 @@ resource "azurerm_private_dns_zone" "internal" {
 
 # Extract ARM VNet IDs for DNS links
 locals {
-  name_prefix         = var.name_suffix != "" ? "${var.environment_prefix}-${var.name_suffix}" : var.environment_prefix
+  name_prefix         = var.random_suffix ? "${var.environment_prefix}-${random_id.suffix[0].hex}" : var.environment_prefix
   prod_arm_vnet_id    = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", aviatrix_vpc.prod.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.prod.vpc_id), 0)}"
   nonprod_arm_vnet_id = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${element(split(":", aviatrix_vpc.nonprod.vpc_id), 1)}/providers/Microsoft.Network/virtualNetworks/${element(split(":", aviatrix_vpc.nonprod.vpc_id), 0)}"
 }

@@ -260,7 +260,12 @@ resource "aws_route53_zone" "private" {
   }
 }
 
+resource "random_id" "suffix" {
+  count       = var.random_suffix ? 1 : 0
+  byte_length = 2
+}
+
 locals {
-  name_prefix = var.name_suffix != "" ? "${var.environment_prefix}-${var.name_suffix}" : var.environment_prefix
+  name_prefix = var.random_suffix ? "${var.environment_prefix}-${random_id.suffix[0].hex}" : var.environment_prefix
   dns_zone_id = var.route53_zone_id != "" ? var.route53_zone_id : aws_route53_zone.private[0].zone_id
 }
