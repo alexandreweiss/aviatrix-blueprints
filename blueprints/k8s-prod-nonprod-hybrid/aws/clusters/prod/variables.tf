@@ -1,3 +1,8 @@
+variable "aviatrix_aws_account_name" {
+  description = "Aviatrix access account name for AWS (used to grant controller EKS access)"
+  type        = string
+}
+
 variable "aws_region" {
   description = "AWS region"
   type        = string

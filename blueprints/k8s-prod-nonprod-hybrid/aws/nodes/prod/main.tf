@@ -7,6 +7,7 @@ terraform {
     aws        = { source = "hashicorp/aws", version = "~> 5.0" }
     helm       = { source = "hashicorp/helm", version = "~> 2.12" }
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.25" }
+    aviatrix   = { source = "AviatrixSystems/aviatrix", version = "~> 8.2.0" }
   }
 }
 
@@ -18,6 +19,10 @@ locals {
 }
 
 provider "aws" { region = local.region }
+
+provider "aviatrix" {
+  skip_version_validation = true
+}
 
 provider "helm" {
   kubernetes {
@@ -31,6 +36,14 @@ provider "kubernetes" {
   host                   = local.cluster_endpoint
   cluster_ca_certificate = base64decode(local.cluster_ca)
   token                  = data.aws_eks_cluster_auth.this.token
+}
+
+# Aviatrix Kubernetes Cluster Onboarding
+# Registers the EKS cluster with the Aviatrix controller so DCF can
+# inventory namespaces and enforce FirewallPolicy CRDs.
+resource "aviatrix_kubernetes_cluster" "this" {
+  cluster_id          = data.terraform_remote_state.cluster.outputs.cluster_arn
+  use_csp_credentials = true
 }
 
 # Aviatrix k8s-firewall CRDs

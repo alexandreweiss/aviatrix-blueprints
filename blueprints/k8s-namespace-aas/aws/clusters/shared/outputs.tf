@@ -68,3 +68,12 @@ output "kubectl_config_command" {
   description = "aws CLI command to configure kubectl"
   value       = "aws eks update-kubeconfig --region ${data.terraform_remote_state.network.outputs.aws_region} --name ${module.shared_eks.cluster_name}"
 }
+
+#####################
+# Aviatrix
+#####################
+
+output "cluster_arn" {
+  description = "EKS cluster ARN (used for Aviatrix kubernetes_cluster onboarding)"
+  value       = module.shared_eks.cluster_arn
+}

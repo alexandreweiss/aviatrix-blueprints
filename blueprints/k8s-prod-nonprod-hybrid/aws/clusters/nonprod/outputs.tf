@@ -41,3 +41,8 @@ output "cluster_id" {
   description = "Cluster ID for Aviatrix SmartGroup k8s_cluster_id"
   value       = module.eks_nonprod.cluster_name
 }
+
+output "cluster_arn" {
+  description = "EKS cluster ARN (used for Aviatrix kubernetes_cluster onboarding)"
+  value       = module.eks_nonprod.cluster_arn
+}
