@@ -172,7 +172,19 @@ resource "aviatrix_gateway_snat" "shared_spoke_snat" {
   gw_name   = module.shared_spoke.spoke_gateway.gw_name
   snat_mode = "customized_snat"
 
-  # SNAT for pod CIDR to all destinations via transit
+  # SNAT for pod-to-pod traffic within the cluster (intra-VPC)
+  # Forces pod east-west traffic through the spoke gateway so DCF can
+  # enforce namespace isolation rules on intra-cluster traffic.
+  snat_policy {
+    src_cidr   = local.pod_cidr
+    dst_cidr   = local.pod_cidr
+    protocol   = "all"
+    interface  = ""
+    connection = module.aws_transit.transit_gateway.gw_name
+    snat_ips   = module.shared_spoke.spoke_gateway.private_ip
+  }
+
+  # SNAT for pod CIDR to all destinations via transit (east-west to other VPCs)
   snat_policy {
     src_cidr   = local.pod_cidr
     dst_cidr   = "0.0.0.0/0"
