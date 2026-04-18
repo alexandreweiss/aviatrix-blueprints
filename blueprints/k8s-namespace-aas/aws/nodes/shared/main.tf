@@ -198,7 +198,7 @@ resource "kubernetes_manifest" "eniconfig" {
     }
     spec = {
       subnet         = data.terraform_remote_state.network.outputs.shared_pod_subnet_ids[count.index]
-      securityGroups = [data.terraform_remote_state.cluster.outputs.node_security_group_id]
+      securityGroups = [data.terraform_remote_state.cluster.outputs.cluster_security_group_id]
     }
   }
 }
