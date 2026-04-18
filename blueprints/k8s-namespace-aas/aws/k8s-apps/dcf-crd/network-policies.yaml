@@ -1,0 +1,181 @@
+# Namespace Isolation — Kubernetes NetworkPolicy (VPC CNI native eBPF)
+#
+# These policies enforce the same namespace isolation defined in the DCF
+# ruleset (dcf.tf priorities 10, 50-55) but for INTRA-CLUSTER traffic
+# that doesn't traverse the Aviatrix spoke gateway.
+#
+# VPC CNI native NetworkPolicy (v1.14+) uses eBPF — no Calico needed.
+# Enabled via enableNetworkPolicy=true in the VPC CNI addon config.
+#
+# Default deny: each namespace denies all ingress from other namespaces.
+# Explicit allow: team-a can reach team-b on port 443 (mirrors DCF rule 10).
+
+---
+# team-a: Default deny ingress from other namespaces, allow same namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-cross-namespace
+  namespace: team-a
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow all traffic from same namespace
+    - from:
+        - podSelector: {}
+
+---
+# team-b: Default deny ingress from other namespaces, allow same namespace + team-a on 443
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-cross-namespace
+  namespace: team-b
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow all traffic from same namespace
+    - from:
+        - podSelector: {}
+    # Allow team-a -> team-b on port 443 (mirrors DCF rule 10)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: team-a
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+# team-c: Default deny ingress from other namespaces, allow same namespace only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-cross-namespace
+  namespace: team-c
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow all traffic from same namespace
+    - from:
+        - podSelector: {}
+
+---
+# kube-system: Allow all (don't break CoreDNS, kube-proxy, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-kube-system
+  namespace: kube-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - {}
+  egress:
+    - {}
+
+---
+# Allow DNS from all namespaces to kube-system (CoreDNS)
+# Without this, pods can't resolve service names
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: team-a
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Same namespace
+    - to:
+        - podSelector: {}
+    # Cross-namespace to team-b on 443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: team-b
+      ports:
+        - protocol: TCP
+          port: 443
+    # External traffic (goes through spoke gateway → DCF handles it)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 100.64.0.0/16
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: team-b
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector: {}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 100.64.0.0/16
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: team-c
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector: {}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 100.64.0.0/16
