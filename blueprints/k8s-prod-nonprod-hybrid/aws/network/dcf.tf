@@ -292,7 +292,7 @@ resource "aviatrix_web_group" "sandbox_relaxed_egress" {
 resource "aviatrix_dcf_ruleset" "pattern_c" {
   depends_on = [time_sleep.wait_for_dcf]
   name       = "${local.name_prefix}-prod-nonprod-hybrid"
-  attach_to  = "9817dbf0-0703-4613-a5da-46badb709b7d"  # PRE_HOOK
+  attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
 
   # ----- Priority 0: Geo-blocking -----
   rules {
