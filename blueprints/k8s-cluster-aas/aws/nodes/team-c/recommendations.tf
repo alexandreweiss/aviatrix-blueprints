@@ -31,7 +31,7 @@ module "recommendations" {
 variable "enable_network_policy" {
   description = "Install Calico for in-cluster NetworkPolicy enforcement (defense-in-depth)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_gatekeeper" {
