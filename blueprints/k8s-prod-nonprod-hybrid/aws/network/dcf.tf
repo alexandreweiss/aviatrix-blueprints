@@ -286,13 +286,19 @@ resource "aviatrix_web_group" "sandbox_relaxed_egress" {
 }
 
 # ===========================================================================
-# DCF Policy — Two-Layer Ruleset
+# DCF Policy Group — standalone attachment point for this pattern
+# ===========================================================================
+
+# ===========================================================================
+# DCF Policy Group + Ruleset
+# Each blueprint gets its own policy group (attachment point) so multiple
+# patterns can coexist on the same controller without conflicts.
 # ===========================================================================
 
 resource "aviatrix_dcf_ruleset" "pattern_c" {
   depends_on = [time_sleep.wait_for_dcf]
   name       = "${local.name_prefix}-prod-nonprod-hybrid"
-  attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
+  attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED (each blueprint gets its own controller in production)
 
   # ----- Priority 0: Geo-blocking -----
   rules {
