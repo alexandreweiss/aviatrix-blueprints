@@ -77,9 +77,6 @@ module "shared_eks" {
           AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG = "true"
           ENI_CONFIG_LABEL_DEF               = "topology.kubernetes.io/zone"
         }
-        # Enable native NetworkPolicy enforcement (VPC CNI v1.14+, eBPF-based)
-        # Allows standard K8s NetworkPolicy to block cross-namespace traffic
-        enableNetworkPolicy = "true"
       })
     }
   }
