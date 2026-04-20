@@ -470,9 +470,20 @@ resource "aviatrix_dcf_ruleset" "caas" {
   }
 
   #############################
-  # DEFAULT DENY - INTENTIONALLY OMITTED
-  # DO NOT use dst = 0.0.0.0/0 — it blocks RFC1918 too.
+  # DEFAULT DENY - Public Internet (Priority 200)
+  # Uses built-in Public Internet SmartGroup (non-RFC1918 only).
+  # Does NOT block east-west RFC1918 traffic through the transit.
   #############################
+
+  rules {
+    name             = "caas-default-deny-internet"
+    action           = "DENY"
+    priority         = 200
+    protocol         = "ANY"
+    logging          = true
+    src_smart_groups = [aviatrix_smart_group.all_eks_clusters.uuid]
+    dst_smart_groups = [local.public_internet_uuid]
+  }
 }
 
 #####################
