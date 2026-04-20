@@ -286,6 +286,16 @@ resource "aviatrix_web_group" "eks_required" {
     match_expressions {
       snifilter = "*.pkg.dev"
     }
+    # Container registries for Calico and other non-AWS workloads
+    match_expressions {
+      snifilter = "docker.io"
+    }
+    match_expressions {
+      snifilter = "*.docker.io"
+    }
+    match_expressions {
+      snifilter = "quay.io"
+    }
   }
 }
 
