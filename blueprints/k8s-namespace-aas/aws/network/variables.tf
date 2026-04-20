@@ -90,6 +90,10 @@ variable "approved_web_domains" {
     "registry.npmjs.org",
     "pypi.org",
     "ghcr.io",
+    # Calico image registry
+    "docker.io",
+    "*.docker.io",
+    "quay.io",
   ]
 }
 
