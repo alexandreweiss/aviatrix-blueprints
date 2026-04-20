@@ -36,7 +36,7 @@ module "eks_prod" {
   version = "~> 20.0"
 
   cluster_name    = local.cluster_name
-  cluster_version = var.cluster_version
+  cluster_version = var.kubernetes_version
 
   vpc_id     = data.terraform_remote_state.network.outputs.prod_vpc_id
   subnet_ids = data.terraform_remote_state.network.outputs.prod_private_subnets

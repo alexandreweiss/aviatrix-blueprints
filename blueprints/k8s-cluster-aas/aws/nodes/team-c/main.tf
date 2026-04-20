@@ -65,13 +65,16 @@ resource "aviatrix_kubernetes_cluster" "this" {
 #####################
 
 resource "helm_release" "k8s_firewall" {
-  name       = "k8s-firewall"
-  repository = "https://aviatrixsystems.github.io/k8s-firewall-charts"
-  chart      = "k8s-firewall"
-  namespace  = "default"
+  name             = "k8s-firewall"
+  repository       = "https://aviatrixsystems.github.io/k8s-firewall-charts"
+  chart            = "k8s-firewall"
+  namespace        = "aviatrix-system"
+  create_namespace = true
 
-  wait          = false
-  recreate_pods = false
+  set {
+    name  = "cloud"
+    value = "AWS"
+  }
 }
 
 #####################

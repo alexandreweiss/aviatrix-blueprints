@@ -225,11 +225,20 @@ data "aviatrix_dcf_attachment_point" "tf_before_ui" {
   name = "TERRAFORM_BEFORE_UI_MANAGED"
 }
 
+resource "aviatrix_dcf_policy_group" "namespace_isolation" {
+  name      = "${local.name_prefix}-namespace-isolation-group"
+  attach_to = data.aviatrix_dcf_attachment_point.tf_before_ui.id
+
+  ruleset_reference {
+    priority    = 100
+    target_uuid = aviatrix_dcf_ruleset.namespace_isolation.id
+  }
+}
+
 resource "aviatrix_dcf_ruleset" "namespace_isolation" {
   depends_on = [time_sleep.wait_for_dcf]
 
   name      = "${local.name_prefix}-namespace-isolation"
-  attach_to = "defa11a1-3000-4001-0000-000000000000"
 
   #############################
   # THREAT PREVENTION (Priority 0-1)

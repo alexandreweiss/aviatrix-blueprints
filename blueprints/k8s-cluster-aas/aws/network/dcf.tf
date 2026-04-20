@@ -315,13 +315,27 @@ resource "aviatrix_web_group" "github_aviatrix" {
 #####################
 
 #####################
-# DCF Ruleset
+# DCF Policy Group + Ruleset
+# Each blueprint creates its own policy group as a standalone attachment point.
 #####################
+
+data "aviatrix_dcf_attachment_point" "terraform_after" {
+  name = "TERRAFORM_AFTER_UI_MANAGED"
+}
+
+resource "aviatrix_dcf_policy_group" "caas" {
+  name      = "${local.name_prefix}-caas-group"
+  attach_to = data.aviatrix_dcf_attachment_point.terraform_after.id
+
+  ruleset_reference {
+    priority    = 100
+    target_uuid = aviatrix_dcf_ruleset.caas.id
+  }
+}
 
 resource "aviatrix_dcf_ruleset" "caas" {
   depends_on = [time_sleep.wait_for_dcf]
   name       = "${local.name_prefix}-caas"
-  attach_to  = "defa11a1-3000-4002-0000-000000000000"  # TERRAFORM_AFTER_UI_MANAGED
 
   #############################
   # THREAT PREVENTION (Priority 0-1)

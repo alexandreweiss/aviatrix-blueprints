@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 
 variable "aws_account_name" {
-  description = "Aviatrix AWS account name (as onboarded in Controller)"
+  description = "Aviatrix AWS account name (as onboarded in Controller). Equivalent to aviatrix_aws_account_name in other patterns."
   type        = string
 }
 
@@ -49,7 +49,7 @@ variable "pod_cidr" {
 # --------------- Naming ---------------
 
 variable "environment_prefix" {
-  description = "Prefix for all resource names"
+  description = "Prefix for all resource names. Equivalent to name_prefix in other patterns."
   type        = string
   default     = "pc2"
 }

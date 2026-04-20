@@ -27,6 +27,11 @@ output "cluster_oidc_provider_arn" {
   value       = module.eks_nonprod.oidc_provider_arn
 }
 
+output "oidc_provider_arn" {
+  description = "OIDC provider ARN for IRSA (consistent with other patterns)"
+  value       = module.eks_nonprod.oidc_provider_arn
+}
+
 output "cluster_security_group_id" {
   description = "Security group ID attached to the EKS cluster"
   value       = module.eks_nonprod.cluster_security_group_id

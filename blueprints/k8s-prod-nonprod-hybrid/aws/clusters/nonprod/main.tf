@@ -35,7 +35,7 @@ module "eks_nonprod" {
   version = "~> 20.0"
 
   cluster_name    = local.cluster_name
-  cluster_version = var.cluster_version
+  cluster_version = var.kubernetes_version
 
   vpc_id     = data.terraform_remote_state.network.outputs.nonprod_vpc_id
   subnet_ids = data.terraform_remote_state.network.outputs.nonprod_private_subnets
@@ -67,7 +67,7 @@ module "eks_nonprod" {
 
   eks_managed_node_groups = {
     nonprod_workers = {
-      name           = "${data.terraform_remote_state.network.outputs.name_prefix}-nonprod-workers"
+      name           = "${data.terraform_remote_state.network.outputs.name_prefix}-np-workers"
       instance_types = ["t3.large"]
       min_size       = 1
       max_size       = 3

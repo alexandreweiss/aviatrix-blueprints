@@ -15,7 +15,7 @@ variable "environment_prefix" {
   default     = "pc2"
 }
 
-variable "cluster_version" {
+variable "kubernetes_version" {
   description = "EKS Kubernetes version"
   type        = string
   default     = "1.35"
