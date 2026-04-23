@@ -1,0 +1,17 @@
+# Azure region — must match network layer
+azure_region = "eastus2"
+
+# Kubernetes version
+# kubernetes_version = "1.31"
+
+# Node pool sizing
+node_pool_config = {
+  node_count = 2
+  min_count  = 1
+  max_count  = 3
+  vm_size    = "Standard_D2s_v3"
+}
+
+# Restrict API server access to your IP for security (recommended)
+# authorized_ip_ranges = ["<YOUR_IP>/32"]
+authorized_ip_ranges = ["0.0.0.0/0"]
