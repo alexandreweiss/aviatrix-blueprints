@@ -1,144 +1,156 @@
-# Pattern B: Namespace-as-a-Service
+# k8s-namespace-aas — Namespace-as-a-Service
 
-Single shared Kubernetes cluster with namespace-level isolation enforced by Aviatrix DCF and Kubernetes RBAC.
+All teams share a **single EKS cluster** with namespace-level isolation enforced by Aviatrix DCF (transit-level) and Calico NetworkPolicy (intra-cluster). Kubernetes RBAC prevents accidental cross-namespace access but is **not a network security boundary** — DCF and NetworkPolicy are the enforcement mechanisms.
 
 ## Architecture
 
 ```
-                    ┌─────────────────┐
-                    │  Aviatrix Transit│
-                    │    Gateway (Hub) │
-                    └────────┬────────┘
-                             │
-                    ┌────────┴────────┐
-                    │   Shared VPC    │
-                    │   + Spoke GW    │
-                    │                 │
-                    │ ┌─────────────┐ │
-                    │ │ Shared EKS  │ │
-                    │ │             │ │
-                    │ │ ┌─────────┐ │ │
-                    │ │ │ team-a  │ │ │
-                    │ │ ├─────────┤ │ │
-                    │ │ │ team-b  │ │ │
-                    │ │ ├─────────┤ │ │
-                    │ │ │ team-c  │ │ │
-                    │ │ └─────────┘ │ │
-                    │ └─────────────┘ │
-                    └─────────────────┘
+Transit GW (10.2.0.0/20)
+└── Shared Spoke (10.10.0.0/16) ──── EKS shared-cluster
+                                          ├── namespace: team-a  [pods: 100.64.x.x]
+                                          ├── namespace: team-b  [pods: 100.64.x.x]
+                                          └── namespace: team-c  [pods: 100.64.x.x]
 ```
 
-All teams share one cluster. Isolation is provided by DCF SmartGroups (keyed on `k8s_namespace`) and RBAC RoleBindings that scope teams to their namespace.
+**VPCs:** 2 (transit + shared) · **Clusters:** 1 (shared) · **Kubernetes:** 1.35
 
-## Supported CSPs
+### Pod Networking
+Pods use RFC 6598 overlay CIDR (`100.64.0.0/16`). Aviatrix SNAT translates pod IPs to the spoke gateway IP for east-west and egress traffic. Intra-cluster east-west stays within the VPC fabric and is enforced by Calico NetworkPolicy.
 
-| Directory | Cloud | Clusters | Region Default |
-|-----------|-------|----------|----------------|
-| `aws/` | AWS (EKS) | shared | us-east-1 |
-| `azure/` | Azure (AKS) | shared | — |
-| `gcp/` | GCP (GKE) | shared | — |
+### Two-Layer Isolation
 
-## Layers
+| Layer | Mechanism | Scope |
+|---|---|---|
+| Cross-VPC | Aviatrix DCF at spoke gateway | Between clusters / external egress |
+| Intra-cluster | Calico NetworkPolicy (iptables) | Between namespaces, same cluster |
 
-| Layer | Directory | What It Creates | ~Time |
-|-------|-----------|-----------------|-------|
-| 1. Network | `{csp}/network/` | Transit GW, shared VPC + spoke GW, Route53/DNS zone, SNAT policies | 5-8 min |
-| 2. Cluster | `{csp}/clusters/shared/` | EKS/AKS/GKE control plane, VPC CNI custom networking, Aviatrix cluster onboarding | 10-15 min |
-| 3. Nodes | `{csp}/nodes/shared/` | Shared node group (m5.xlarge, SPOT), ENIConfig, k8s-firewall Helm chart | 5-8 min |
-| 4. CRDs | `{csp}/k8s-apps/dcf-crd/` | Namespaces, RBAC, FirewallPolicy CRDs, WebGroupPolicy CRDs | < 1 min |
+### DCF Policy Layout
 
-## Key Design Decisions
+| Priority | Action | Rule |
+|---|---|---|
+| 0–1 | DENY | Geo-block (IR, KP, RU) + ThreatIQ |
+| 5 | PERMIT | Monitoring namespace → all namespaces on TCP/9090 |
+| 10 | PERMIT | team-a → team-b on TCP/443 |
+| 50–55 | DENY | Namespace isolation (team-a ↔ team-c, team-b ↔ team-c) |
+| 60 | PERMIT | All namespaces → EKS required services egress |
 
-- **Single cluster, multi-tenant**: Lower cost and operational overhead vs. Pattern A. Trade-off: blast radius is larger.
-- **DCF as primary isolation**: SmartGroups match on `k8s_namespace` label. DCF sees post-SNAT traffic, so VPC SmartGroups match source IPs (spoke gateway).
-- **RBAC is NOT a network boundary**: Kubernetes RBAC prevents accidental cross-namespace access but does not enforce network isolation. DCF provides the hard boundary.
-- **Team self-service CRDs**: Teams can author FirewallPolicy CRDs (priority 70-99) to control their own egress destinations via WebGroups.
+### Calico NetworkPolicy (intra-cluster)
+Deployed via `aws/k8s-apps/dcf-crd/network-policies.yaml`:
+- **team-a**: allow same namespace, deny other namespaces
+- **team-b**: allow same namespace + team-a ingress (mirrors DCF rule 10)
+- **team-c**: allow same namespace only (fully isolated)
 
-## Layer 4: CRD Details
+## Deployment
 
-### Namespaces Created
+```
+Layer 1: aws/network/          ← Transit, VPC, Spoke, DNS, DCF  (~8 min)
+Layer 2: aws/clusters/shared/  ← Shared EKS control plane        (~15 min)
+Layer 3: aws/nodes/shared/     ← Node group, ENIConfig, Helm      (~8 min)
+Layer 4: aws/k8s-apps/         ← Namespaces, RBAC, NetworkPolicy  (<1 min)
+```
 
-| Namespace | Purpose | Labels |
-|-----------|---------|--------|
-| `team-a` | Team A workloads | `team: team-a` |
-| `team-b` | Team B workloads | `team: team-b` |
-| `team-c` | Team C workloads | `team: team-c` |
-| `monitoring` | Shared observability | — |
-| `istio-system` | Service mesh | — |
-| `cert-manager` | TLS automation | — |
+### Prerequisites
+- Aviatrix Controller with AWS account onboarded
+- AWS credentials with sufficient permissions
+- Terraform ≥ 1.5 · kubectl · helm
 
-### FirewallPolicy CRDs
-
-- **team-a**: Allows `app=api` pods to reach `api.stripe.com`, `api.sendgrid.com` on TCP 443
-- **team-b**: Allows `app=frontend` to CDN domains (CloudFront, Cloudflare, Akamai) and `app=analytics` to Segment/Mixpanel on TCP 443
-
-## Deploy (AWS Example)
+### Layer 1 — Network
 
 ```bash
-cd namespace-aas/aws
-
-# Layer 1
-cd network && terraform init && terraform apply -auto-approve && cd ..
-
-# Layer 2
-cd clusters/shared && terraform init && terraform apply -auto-approve && cd ../..
-
-# Layer 3
-cd nodes/shared && terraform init && terraform apply -auto-approve && cd ../..
-
-# Layer 4
-aws eks update-kubeconfig --name naas-shared-eks --region us-east-1
-kubectl apply -f k8s-apps/dcf-crd/namespace-setup.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-team-a.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-team-b.yaml
+cd aws/network
+terraform init
+terraform apply -var="aviatrix_aws_account_name=<account>"
 ```
-
-## Destroy (Reverse Order)
-
-```bash
-cd namespace-aas/aws
-
-kubectl delete -f k8s-apps/dcf-crd/ --ignore-not-found
-cd nodes/shared && terraform destroy -auto-approve && cd ../..
-cd clusters/shared && terraform destroy -auto-approve && cd ../..
-cd network && terraform destroy -auto-approve && cd ..
-```
-
-## Variables
-
-### Network Layer
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `name_prefix` | `naas` | Resource naming prefix |
-| `aviatrix_aws_account_name` | — | Aviatrix-onboarded AWS account name (required) |
-| `aws_region` | `us-east-1` | Target region |
-| `shared_vpc_cidr` | `10.10.0.0/16` | Shared VPC CIDR |
-| `transit_cidr` | `10.2.0.0/20` | Transit VPC CIDR |
+|---|---|---|
+| `aviatrix_aws_account_name` | required | Aviatrix access account name |
+| `aws_region` | `us-east-1` | AWS region |
+| `name_prefix` | `naas` | Resource name prefix |
+| `random_suffix` | `true` | Append random hex (e.g. `naas-9d4c`) |
+| `shared_vpc_cidr` | `10.10.0.0/16` | Shared cluster VPC CIDR |
 | `pod_cidr` | `100.64.0.0/16` | Pod overlay CIDR |
-| `team_namespaces` | `[team-a, team-b, team-c]` | Namespace list for DCF SmartGroups |
+| `k8s_cluster_suffix` | `shared-eks` | Suffix for cluster name |
+| `team_namespaces` | `["team-a","team-b","team-c"]` | Teams to isolate |
+| `approved_web_domains` | `[*.amazonaws.com, ghcr.io, docker.io…]` | Approved egress domains |
 
-### Cluster Layer
+### Layer 2 — Cluster
+
+```bash
+cd aws/clusters/shared
+terraform init
+terraform apply -var="aviatrix_aws_account_name=<account>"
+```
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `kubernetes_version` | `1.31` | EKS Kubernetes version |
-| `enable_private_endpoint` | `false` | Private-only API server |
-| `enable_control_plane_logging` | `false` | Control plane audit logging |
+|---|---|---|
+| `kubernetes_version` | `1.35` | EKS version |
 
-### Nodes Layer
+### Layer 3 — Nodes
+
+```bash
+cd aws/nodes/shared
+terraform init && terraform apply
+```
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `node_group_config.desired_size` | `3` | Desired node count |
-| `node_group_config.instance_type` | `m5.xlarge` | EC2 instance type |
-| `node_group_config.capacity_type` | `SPOT` | SPOT or ON_DEMAND |
+|---|---|---|
+| `node_group_config.instance_type` | `t3.large` | EC2 instance type |
+| `node_group_config.desired_size` | `2` | Node count |
+| `node_group_config.capacity_type` | `SPOT` | `SPOT` or `ON_DEMAND` |
+| `enable_network_policy` | `true` | Calico (policy-only mode) |
 
-## Prerequisites
+### Layer 4 — K8s Apps
 
-- Aviatrix Controller with CoPilot
-- Aviatrix-onboarded cloud account
-- Terraform >= 1.5, AWS CLI >= 2.61, kubectl >= 1.28
-- Sufficient quotas (3 VPCs, 4 EIPs per region)
+```bash
+# Apply namespace isolation policies
+kubectl apply -f aws/k8s-apps/dcf-crd/network-policies.yaml
 
-See [DEPLOYMENT-WORKFLOW.md](../DEPLOYMENT-WORKFLOW.md) for full details.
+# Optional: team self-service egress policies
+kubectl apply -f aws/k8s-apps/dcf-crd/firewallpolicy-team-a.yaml
+kubectl apply -f aws/k8s-apps/dcf-crd/firewallpolicy-team-b.yaml
+```
+
+## Traffic Tests
+
+```bash
+aws eks update-kubeconfig --name <cluster-name> --alias naas-shared --region us-east-1
+
+# Create test pods per namespace
+for ns in team-a team-b team-c; do
+  kubectl -n $ns run nginx --image=nginx:alpine --port=80 --restart=Never
+  kubectl -n $ns run netshoot --image=nicolaka/netshoot --command -- sleep infinity --restart=Never
+  kubectl -n $ns expose pod nginx --port=443 --target-port=80 --name="${ns}-svc"
+done
+```
+
+Expected results:
+
+| Test | Expected | Enforced by |
+|---|---|---|
+| team-a → team-a (same ns) | PASS | — |
+| team-a → team-b | PASS | Calico PERMIT + DCF rule 10 |
+| team-a → team-c | BLOCKED | Calico DENY + DCF rule 50 |
+| team-c → team-a | BLOCKED | Calico DENY + DCF rule 51 |
+| team-b → team-c | BLOCKED | Calico DENY + DCF rule 52 |
+| team-c → team-b | BLOCKED | Calico DENY + DCF rule 55 |
+
+## Destroy (reverse order)
+
+```bash
+kubectl delete -f aws/k8s-apps/dcf-crd/
+terraform -chdir=aws/nodes/shared destroy -auto-approve
+terraform -chdir=aws/clusters/shared destroy -var="aviatrix_aws_account_name=<account>" -auto-approve
+terraform -chdir=aws/network destroy -var="aviatrix_aws_account_name=<account>" -auto-approve
+```
+
+## Key Design Notes
+
+- **RBAC is not a network boundary** — it prevents accidental access, DCF + NetworkPolicy enforce isolation
+- **Two enforcement layers required for intra-cluster isolation** — DCF only sees traffic that traverses the spoke gateway; Calico covers pod-to-pod within the same VPC
+- **`k8s_cluster_id` is required in K8s SmartGroups** — prevents cross-cluster namespace collisions when multiple clusters report to the same controller
+- **Approved egress domains include docker.io** — Calico images pull from docker.io; add this to avoid image pull failures behind DCF
+
+## When to Use
+
+Choose this pattern when **cost and operational simplicity** matter more than blast-radius isolation. Best for trusted teams with controlled workloads. For stricter isolation, see [k8s-cluster-aas](../k8s-cluster-aas/). For the recommended balanced approach, see [k8s-prod-nonprod-hybrid](../k8s-prod-nonprod-hybrid/).

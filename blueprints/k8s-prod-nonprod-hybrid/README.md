@@ -1,181 +1,188 @@
-# Pattern C: Prod/Non-Prod Hybrid (Recommended)
+# k8s-prod-nonprod-hybrid — Prod/Non-Prod Hybrid (Recommended)
 
-Separate production and non-production clusters with two-layer DCF isolation: environment-level (VPC) and namespace-level (CRDs). Combines the strong isolation of Pattern A with the team self-service of Pattern B.
+Separate production and non-production EKS clusters with **two-layer DCF isolation**: environment-level (VPC SmartGroups) and namespace-level (K8s SmartGroups). Combines the strong isolation of cluster-aas with the team self-service of namespace-aas. HA enabled by default.
 
 ## Architecture
 
 ```
-                    ┌─────────────────┐
-                    │  Aviatrix Transit│
-                    │    Gateway (Hub) │
-                    │       (HA)       │
-                    └──┬──────┬──────┬┘
-                       │      │      │
-              ┌────────┘      │      └────────┐
-              ▼               ▼               ▼
-        ┌───────────┐  ┌───────────┐  ┌───────────┐
-        │Production │  │Non-Prod   │  │ Database  │
-        │  VPC      │  │  VPC      │  │  Spoke    │
-        │  + Spoke  │  │  + Spoke  │  │(prod-only)│
-        │           │  │           │  └───────────┘
-        │ ┌───────┐ │  │ ┌───────┐ │
-        │ │pc2-   │ │  │ │pc2-   │ │
-        │ │prod   │ │  │ │nonprod│ │
-        │ │       │ │  │ │       │ │
-        │ │team-a │ │  │ │team-a │ │
-        │ │team-b │ │  │ │team-b │ │
-        │ └───────┘ │  │ │sandbox│ │
-        └───────────┘  │ └───────┘ │
-                       └───────────┘
+Transit GW (10.2.0.0/20, HA)
+├── Prod Spoke    (10.10.0.0/20) ──── EKS prod-cluster
+│                                         ├── namespace: team-a-prod
+│                                         ├── namespace: team-b-prod
+│                                         └── namespace: monitoring
+├── NonProd Spoke (10.20.0.0/20) ──── EKS nonprod-cluster
+│                                         ├── namespace: team-a-dev
+│                                         ├── namespace: team-b-staging
+│                                         ├── namespace: sandbox
+│                                         └── namespace: monitoring
+└── DB Spoke      (10.5.0.0/22)  ──── Database (prod-only)
 ```
 
-Production and non-production are hard-isolated at the VPC/spoke level. Within each cluster, teams get their own namespaces with DCF-enforced egress policies. The database spoke is only reachable from production.
+**VPCs:** 4 (transit + prod + nonprod + DB) · **Clusters:** 2 · **Kubernetes:** 1.35
 
-## Supported CSPs
+### Two-Layer DCF Isolation
 
-| Directory | Cloud | Clusters | Region Default |
-|-----------|-------|----------|----------------|
-| `aws/` | AWS (EKS) | prod, nonprod | us-east-2 |
-| `azure/` | Azure (AKS) | prod, nonprod | — |
-| `gcp/` | GCP (GKE) | prod, nonprod | — |
+**Layer 1 — Environment boundary (VPC SmartGroups)**
+- Prod VPC ↔ NonProd VPC: bidirectionally denied
+- Database spoke: prod-only (transit routing + DCF rules)
 
-## Layers
+**Layer 2 — Team namespace boundary (K8s SmartGroups)**
+- Per-namespace SmartGroups (`k8s_namespace` + `k8s_cluster_id`)
+- Teams define egress policies via FirewallPolicy CRDs (priority 70–99)
 
-| Layer | Directory | What It Creates | ~Time |
-|-------|-----------|-----------------|-------|
-| 1. Network | `{csp}/network/` | Transit GW (HA), prod VPC + spoke, nonprod VPC + spoke, database spoke, Route53/DNS zone, SNAT policies | 5-8 min |
-| 2. Clusters | `{csp}/clusters/{env}/` | EKS/AKS/GKE control plane per environment, VPC CNI, managed node groups, Aviatrix cluster onboarding | 10-15 min each |
-| 3. Nodes | `{csp}/nodes/{env}/` | k8s-firewall Helm chart (DCF CRD engine) | 5-8 min each |
-| 4. CRDs | `{csp}/k8s-apps/dcf-crd/` | Namespaces, FirewallPolicy CRDs (strict for prod, relaxed for nonprod) | < 1 min |
+### DCF Policy Layout
 
-## Key Design Decisions
+| Priority | Action | Rule |
+|---|---|---|
+| 0–1 | DENY | Geo-block + ThreatIQ |
+| 10 | DENY | prod-vpc → nonprod-vpc |
+| 11 | DENY | nonprod-vpc → prod-vpc |
+| 20–21 | DENY | monitoring-nonprod ↔ prod namespaces |
+| 30 | DENY | nonprod → DB spoke |
+| 31 | PERMIT | prod → DB spoke |
+| 32 | PERMIT | monitoring-prod → prod namespaces (TCP/9090) |
+| 50–51 | PERMIT | prod/nonprod egress → EKS required services |
+| 70–99 | — | Team self-service via FirewallPolicy CRDs |
 
-- **Two-layer isolation**: VPC boundaries block prod/nonprod cross-traffic at Layer 1. DCF CRDs enforce per-team egress at Layer 4.
-- **Database spoke is prod-only**: Transit routing ensures nonprod cannot reach the database spoke, regardless of DCF rules.
-- **Stricter prod policies**: Production FirewallPolicies allow only pre-approved API endpoints. Nonprod policies are more relaxed; sandbox allows all HTTPS egress.
-- **HA by default**: Transit and spoke gateways deploy with HA enabled (`enable_ha = true`).
+## Deployment
 
-## Layer 4: CRD Details
+```
+Layer 1: aws/network/              ← Transit(HA), VPCs, Spokes, DNS, DCF  (~8 min)
+Layer 2: aws/clusters/prod|nonprod  ← EKS control planes (parallel)         (~15 min)
+Layer 3: aws/nodes/prod|nonprod     ← Node groups, Helm charts (parallel)    (~8 min)
+Layer 4: aws/k8s-apps/             ← Namespaces, RBAC, FirewallPolicy CRDs  (<1 min)
+```
 
-### Production Namespaces
+### Prerequisites
+- Aviatrix Controller with AWS account onboarded
+- AWS credentials with sufficient permissions
+- Terraform ≥ 1.5 · kubectl · helm
 
-| Namespace | Egress Policy |
-|-----------|--------------|
-| `team-a-prod` | TCP 443 to Stripe, Datadog, AWS APIs only |
-| `team-b-prod` | TCP 443 to CloudFront, Akamai only |
-| `monitoring` | Observability stack |
-
-### Non-Production Namespaces
-
-| Namespace | Egress Policy |
-|-----------|--------------|
-| `team-a-dev` | TCP 443 to npm, GitHub, AWS APIs, Stripe |
-| `team-b-staging` | TCP 443 to staging CDN and build tools |
-| `sandbox` | TCP 80/443 to any destination (relaxed) |
-| `monitoring` | Observability stack |
-
-## Deploy (AWS Example)
+### Layer 1 — Network
 
 ```bash
-cd prod-nonprod-hybrid/aws
-
-# Layer 1
-cd network && terraform init && terraform apply -auto-approve && cd ..
-
-# Layer 2 (parallel)
-cd clusters/prod && terraform init && terraform apply -auto-approve &
-cd clusters/nonprod && terraform init && terraform apply -auto-approve &
-wait
-
-# Layer 3 (parallel)
-cd nodes/prod && terraform init && terraform apply -auto-approve &
-cd nodes/nonprod && terraform init && terraform apply -auto-approve &
-wait
-
-# Layer 4
-aws eks update-kubeconfig --name pc2-prod --region us-east-2
-kubectl apply -f k8s-apps/dcf-crd/prod-namespaces.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-prod.yaml
-
-aws eks update-kubeconfig --name pc2-nonprod --region us-east-2
-kubectl apply -f k8s-apps/dcf-crd/nonprod-namespaces.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-nonprod.yaml
+cd aws/network
+terraform init
+terraform apply -var="aws_account_name=<account>"
 ```
-
-## Destroy (Reverse Order)
-
-```bash
-cd prod-nonprod-hybrid/aws
-
-for env in prod nonprod; do
-  (cd nodes/$env && terraform destroy -auto-approve) &
-done
-wait
-
-for env in prod nonprod; do
-  (cd clusters/$env && terraform destroy -auto-approve) &
-done
-wait
-
-cd network && terraform destroy -auto-approve && cd ..
-```
-
-## Variables
-
-### Network Layer
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `aws_account_name` | — | Aviatrix-onboarded AWS account name (required) |
-| `aws_region` | `us-east-2` | Target region |
-| `transit_cidr` | `10.2.0.0/20` | Transit VPC CIDR |
+|---|---|---|
+| `aws_account_name` | required | Aviatrix access account name |
+| `aws_region` | `us-east-2` | AWS region |
+| `environment_prefix` | `pc2` | Resource name prefix |
+| `random_suffix` | `true` | Append random hex (e.g. `pc2-7160`) |
 | `prod_vpc_cidr` | `10.10.0.0/20` | Production VPC CIDR |
 | `nonprod_vpc_cidr` | `10.20.0.0/20` | Non-production VPC CIDR |
-| `db_vpc_cidr` | `10.5.0.0/22` | Database spoke CIDR |
-| `pod_cidr` | `100.64.0.0/16` | Shared pod overlay CIDR |
-| `enable_ha` | `true` | HA for transit and spoke gateways |
-| `teams` | map | Team namespace definitions |
+| `db_spoke_cidr` | `10.5.0.0/22` | Database spoke CIDR |
+| `pod_cidr` | `100.64.0.0/16` | Pod overlay CIDR |
+| `enable_ha` | `true` | Enable gateway HA |
 
-### Cluster Layer
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `cluster_version` | `1.31` | EKS Kubernetes version |
-| `enable_private_endpoint` | `false` | Private-only API server |
-| `enable_control_plane_logging` | `false` | Control plane audit logging |
-
-### Nodes Layer
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| Prod: `desired_size` | `2` | Prod node count |
-| Nonprod: `desired_size` | `2` | Nonprod node count |
-| `instance_type` | `t3.large` | EC2 instance type |
-
-## Verification
+### Layer 2 — Clusters (parallel)
 
 ```bash
-# Prod cluster
-aws eks update-kubeconfig --name pc2-prod --region us-east-2
-kubectl get nodes
-kubectl get firewallpolicies -A
+terraform -chdir=aws/clusters/prod init
+terraform -chdir=aws/clusters/prod apply -var="aviatrix_aws_account_name=<account>" -auto-approve &
 
-# Nonprod cluster
-aws eks update-kubeconfig --name pc2-nonprod --region us-east-2
-kubectl get nodes
-kubectl get firewallpolicies -A
-
-# Verify in CoPilot:
-#   Security > DCF — two-layer rules (env + namespace)
-#   nonprod → prod traffic: DENIED
-#   nonprod → database spoke: DENIED
+terraform -chdir=aws/clusters/nonprod init
+terraform -chdir=aws/clusters/nonprod apply -var="aviatrix_aws_account_name=<account>" -auto-approve &
+wait
 ```
 
-## Prerequisites
+| Variable | Default | Description |
+|---|---|---|
+| `kubernetes_version` | `1.35` | EKS version |
 
-- Aviatrix Controller with CoPilot
-- Aviatrix-onboarded cloud account
-- Terraform >= 1.5, AWS CLI >= 2.61, kubectl >= 1.28
-- Sufficient quotas (5 VPCs, 10 EIPs per region)
+### Layer 3 — Nodes (parallel)
 
-See [DEPLOYMENT-WORKFLOW.md](../DEPLOYMENT-WORKFLOW.md) for full details.
+```bash
+terraform -chdir=aws/nodes/prod apply -auto-approve &
+terraform -chdir=aws/nodes/nonprod apply -auto-approve &
+wait
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `node_group_config.instance_type` | `t3.large` | EC2 instance type |
+| `node_group_config.desired_size` | `2` | Node count |
+| `enable_network_policy` | `true` | Calico (policy-only mode) |
+
+### Layer 4 — K8s Apps (both clusters)
+
+```bash
+# Production cluster
+aws eks update-kubeconfig --name <prod-cluster> --alias pc2-prod --region us-east-2
+kubectl --context pc2-prod apply -f aws/k8s-apps/dcf-crd/prod-namespaces.yaml
+kubectl --context pc2-prod apply -f aws/k8s-apps/dcf-crd/firewallpolicy-prod.yaml
+
+# Non-production cluster
+aws eks update-kubeconfig --name <nonprod-cluster> --alias pc2-nonprod --region us-east-2
+kubectl --context pc2-nonprod apply -f aws/k8s-apps/dcf-crd/nonprod-namespaces.yaml
+kubectl --context pc2-nonprod apply -f aws/k8s-apps/dcf-crd/firewallpolicy-nonprod.yaml
+```
+
+## Traffic Tests
+
+```bash
+# Deploy test pods in both clusters
+for ctx in pc2-prod pc2-nonprod; do
+  kubectl --context $ctx -n default run nginx --image=nginx:alpine --port=80 --restart=Never
+  kubectl --context $ctx -n default run netshoot --image=nicolaka/netshoot --command -- sleep infinity --restart=Never
+done
+```
+
+Expected results:
+
+| Test | Expected | DCF Rule |
+|---|---|---|
+| prod → nonprod VPC | BLOCKED | DENY 10 |
+| nonprod → prod VPC | BLOCKED | DENY 11 |
+| nonprod → DB spoke | BLOCKED | DENY 30 |
+| prod → DB spoke | PASS | PERMIT 31 |
+| prod egress registry.k8s.io | PASS | PERMIT 50 |
+| nonprod egress registry.k8s.io | PASS | PERMIT 51 |
+
+## Destroy (reverse order)
+
+```bash
+# Layer 4
+kubectl --context pc2-prod delete -f aws/k8s-apps/dcf-crd/
+kubectl --context pc2-nonprod delete -f aws/k8s-apps/dcf-crd/
+
+# Layer 3
+terraform -chdir=aws/nodes/prod destroy -auto-approve &
+terraform -chdir=aws/nodes/nonprod destroy -auto-approve &
+wait
+
+# Layer 2
+terraform -chdir=aws/clusters/prod destroy -var="aviatrix_aws_account_name=<account>" -auto-approve &
+terraform -chdir=aws/clusters/nonprod destroy -var="aviatrix_aws_account_name=<account>" -auto-approve &
+wait
+
+# Layer 1
+terraform -chdir=aws/network destroy -var="aws_account_name=<account>" -auto-approve
+```
+
+## Key Design Notes
+
+- **Two-layer isolation is the key differentiator** — environment boundary (VPC) prevents gross misconfiguration; namespace boundary enforces team segmentation within each environment
+- **Database spoke is prod-only via transit routing + DCF** — dual enforcement means a misconfigured DCF rule alone can't expose the DB to nonprod
+- **`k8s_cluster_id` differs for prod vs nonprod SmartGroups** — without this, namespace names collide between clusters
+- **Sandbox namespace has relaxed egress** — suitable for developer experimentation without compromising prod or nonprod
+- **HA enabled by default** — recommended for production-grade deployments
+
+## Environment Policies
+
+| Namespace | Egress Allowed | Rationale |
+|---|---|---|
+| team-a-prod | Stripe, Datadog, AWS APIs | Production: strict allowlist |
+| team-b-prod | CloudFront, Akamai | Production: CDN only |
+| team-a-dev | npm, GitHub, AWS, Stripe | Dev: includes build tools |
+| team-b-staging | Staging CDN, build tools | Staging: mirrors prod with extras |
+| sandbox | All HTTPS | Developer experimentation |
+
+## When to Use
+
+**Recommended for most organizations.** Choose this pattern when you need environment-level isolation (prod cannot talk to nonprod) combined with team self-service egress policies. Balances security, cost, and operational overhead.
+
+For the strongest isolation, see [k8s-cluster-aas](../k8s-cluster-aas/). For the lowest cost, see [k8s-namespace-aas](../k8s-namespace-aas/).
