@@ -1,23 +1,10 @@
-# Aviatrix Kubernetes Multi-Cloud — Deployment Workflow
+# Deployment Workflow
 
-## Overview
-
-Three deployment patterns, each following a 4-layer sequential workflow.
-Layers must be deployed in order (each depends on the previous).
-Destruction is reverse order.
-
-```
-Layer 1: Network    → Transit GW, Spoke GWs, VPCs, SNAT, DNS, DCF
-Layer 2: Clusters   → EKS/AKS/GKE control planes
-Layer 3: Nodes      → Node groups, Helm charts (CRDs, ingress, ExternalDNS)
-Layer 4: Apps/CRDs  → Namespaces, FirewallPolicy, WebGroupPolicy manifests
-```
-
----
+Step-by-step guide for deploying all three Kubernetes blueprint patterns.
 
 ## Prerequisites
 
-### Environment Variables (required for all layers)
+### Credentials
 
 ```bash
 # Aviatrix Controller
@@ -25,346 +12,280 @@ export AVIATRIX_CONTROLLER_IP="<controller-ip>"
 export AVIATRIX_USERNAME="admin"
 export AVIATRIX_PASSWORD="<password>"
 
-# AWS (via SSO or access keys)
-aws sso login  # or export AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+# AWS (STS session or access keys)
+export AWS_ACCESS_KEY_ID="..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_SESSION_TOKEN="..."
 
-# Pattern-specific account name variable
-# Pattern A & B:
+# Account name in Aviatrix (Patterns A & B)
 export TF_VAR_aviatrix_aws_account_name="lab-test-aws"
-# Pattern C:
+
+# Account name in Aviatrix (Pattern C — different variable name)
 export TF_VAR_aws_account_name="lab-test-aws"
 ```
 
-### Automated Setup
+### Tools
 
-For GitHub Actions deployments, run the one-time setup via GUI or CLI:
-
-```bash
-cd .github
-python3 setup_gui.py   # Web GUI (opens browser)
-# or
-./setup.sh             # Interactive CLI
-```
-
-See [WORKFLOW-GUIDE.md](WORKFLOW-GUIDE.md) for full details.
-
-### Tool Versions
-
-| Tool | Minimum Version |
-|------|----------------|
+| Tool | Minimum |
+|---|---|
 | Terraform | >= 1.5 |
-| AWS CLI | >= 2.61 |
+| AWS CLI | >= 2.0 |
 | kubectl | >= 1.28 |
 | Helm | >= 3.0 |
-| Aviatrix Provider | ~> 8.2 |
 
 ### AWS Service Quotas (per region)
 
 | Quota | Pattern A | Pattern B | Pattern C |
-|-------|-----------|-----------|-----------|
+|---|---|---|---|
 | VPCs | 6 | 3 | 5 |
 | Elastic IPs | 12 | 4 | 10 |
 | EKS Clusters | 3 | 1 | 2 |
 
-Request increases before deploying:
+Request increases before deploying if needed:
 ```bash
-aws service-quotas request-service-quota-increase --service-code vpc --quota-code L-F678F1CE --desired-value 20 --region <region>
-aws service-quotas request-service-quota-increase --service-code ec2 --quota-code L-0263D0A3 --desired-value 20 --region <region>
+aws service-quotas request-service-quota-increase \
+  --service-code vpc --quota-code L-F678F1CE --desired-value 20 --region <region>
 ```
 
 ---
 
 ## Architecture Recommendation Toggles
 
-Each pattern includes opt-in toggles for best-practice hardening. All default to `false` — zero impact unless explicitly enabled. Set them in `terraform.tfvars` or via `TF_VAR_*` env vars.
-
-### Cluster Layer Toggles (`clusters/*/terraform.tfvars`)
+All patterns include optional hardening add-ons. All default to `false`.
 
 ```hcl
-enable_private_endpoint      = true   # Private-only EKS API (requires VPN/bastion)
-enable_control_plane_logging = true   # Audit, API, authenticator, scheduler logs
-```
+# nodes/*/terraform.tfvars or -var flags
 
-### Nodes Layer Toggles (`nodes/*/terraform.tfvars`)
-
-```hcl
 # Security
-enable_network_policy   = true   # Calico NetworkPolicy (defense-in-depth alongside DCF)
-enable_gatekeeper       = true   # OPA Gatekeeper (admission policy-as-code)
-enable_external_secrets = true   # External Secrets Operator (AWS Secrets Manager → K8s)
-enable_falco            = true   # Falco runtime threat detection (eBPF)
+enable_network_policy   = true   # Calico NetworkPolicy (defense-in-depth)
+enable_gatekeeper       = true   # OPA Gatekeeper admission control
+enable_external_secrets = true   # AWS Secrets Manager → Kubernetes Secrets
+enable_falco            = true   # Runtime threat detection
 
 # Observability
-enable_prometheus_stack = true   # kube-prometheus-stack (Prometheus + Grafana + alerts)
-enable_fluent_bit       = true   # Fluent Bit log aggregation to CloudWatch
+enable_prometheus_stack = true   # Prometheus + Grafana + alerting
+enable_fluent_bit       = true   # Log aggregation to CloudWatch
 
 # Resilience
-enable_node_termination_handler = true   # AWS NTH (required for SPOT instances)
-enable_cluster_autoscaler       = true   # Dynamic node scaling
-enable_velero                   = true   # Cluster backup to S3
+enable_node_termination_handler = true  # Required for SPOT nodes
+enable_cluster_autoscaler       = true  # Dynamic node scaling
+enable_velero                   = true  # Cluster backup to S3
 ```
 
-### Bootstrap Toggles (`.github/bootstrap/terraform.tfvars`)
-
-```hcl
-enable_state_locking = true   # DynamoDB table for Terraform state locking
-```
-
-### Suggested Profiles
+**Suggested profiles:**
 
 | Profile | Toggles |
-|---------|---------|
-| **Demo/Lab** | All defaults (`false`) — fast deployment, no extras |
-| **Minimum Prod** | `enable_control_plane_logging`, `enable_network_policy`, `enable_node_termination_handler`, `enable_cluster_autoscaler`, `enable_state_locking` |
-| **Full Hardening** | All toggles `true` |
-
-See `ARCHITECTURE-ANALYSIS.md` for detailed rationale and references for each recommendation.
+|---|---|
+| Demo/Lab | All defaults (`false`) |
+| Minimum Prod | `network_policy`, `node_termination_handler`, `cluster_autoscaler` |
+| Full Hardening | All `true` |
 
 ---
 
-## Pattern A: Cluster-as-a-Service
+## Pattern A: k8s-cluster-aas
 
-**Region:** us-west-2 (or any region with sufficient quotas)
-**Architecture:** 3 dedicated clusters (team-a, team-b, team-c), VPC-level DCF isolation
+**Region:** us-west-2 · **Architecture:** 3 dedicated EKS clusters, VPC-level DCF isolation
+
+```bash
+BASE=blueprints/blueprints/k8s-cluster-aas/aws
+```
 
 ### Deploy
 
 ```bash
-cd blueprints/cluster-aas/aws
+# Layer 1: Network (~8 min)
+terraform -chdir=$BASE/network init
+terraform -chdir=$BASE/network apply -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve
 
-# Layer 1: Network (~5-8 min)
-cd network
-terraform init
-terraform apply -auto-approve
-cd ..
-
-# Layer 2: Clusters (~10-15 min each, run in parallel)
+# Layer 2: Clusters — parallel (~15 min)
 for team in team-a team-b team-c; do
-  cd clusters/$team
-  terraform init
-  terraform apply -auto-approve &
-  cd ../..
-done
-wait
+  terraform -chdir=$BASE/clusters/$team init
+  terraform -chdir=$BASE/clusters/$team apply \
+    -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve &
+done && wait
 
-# Add your IAM role to each cluster for kubectl access
-for cluster in caas-team-a caas-team-b caas-team-c; do
-  ROLE_ARN=$(aws iam list-roles --query 'Roles[?contains(RoleName,`SubAccountAdmin`)].Arn' --output text)
-  aws eks create-access-entry --cluster-name $cluster --region us-west-2 --principal-arn "$ROLE_ARN"
-  aws eks associate-access-policy --cluster-name $cluster --region us-west-2 \
-    --principal-arn "$ROLE_ARN" \
-    --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-    --access-scope type=cluster
-done
-
-# Layer 3: Nodes (~5-8 min each, run in parallel)
+# Layer 3: Nodes — parallel (~8 min)
 for team in team-a team-b team-c; do
-  cd nodes/$team
-  terraform init
-  terraform apply -auto-approve &
-  cd ../..
-done
-wait
-
-# Layer 4: CRDs (apply via kubectl)
-for cluster in caas-team-a caas-team-b caas-team-c; do
-  aws eks update-kubeconfig --name $cluster --region us-west-2
-done
-# No namespace CRDs needed for Pattern A — teams own their clusters
+  terraform -chdir=$BASE/nodes/$team init
+  terraform -chdir=$BASE/nodes/$team apply -auto-approve &
+done && wait
 ```
 
-### Verify
+### Configure kubectl
 
 ```bash
-# Check all clusters
-for cluster in caas-team-a caas-team-b caas-team-c; do
-  echo "=== $cluster ==="
-  aws eks update-kubeconfig --name $cluster --region us-west-2
-  kubectl get nodes
+# Cluster names include the random suffix (e.g., caas-4462-team-a)
+PREFIX=$(terraform -chdir=$BASE/network output -raw name_prefix)
+for team in team-a team-b team-c; do
+  aws eks update-kubeconfig --name "${PREFIX}-${team}" --alias $team --region us-west-2
 done
-
-# Check DCF in CoPilot: Security > Distributed Cloud Firewall
-# Verify SmartGroups show VPC members
 ```
 
-### Destroy (reverse order)
+### Test
 
 ```bash
-cd blueprints/cluster-aas/aws
-
+# Deploy test containers
 for team in team-a team-b team-c; do
-  cd nodes/$team && terraform destroy -auto-approve && cd ../..
+  kubectl apply -f $BASE/k8s-apps/traffic-test/$team/
 done
 
-for team in team-a team-b team-c; do
-  cd clusters/$team && terraform destroy -auto-approve && cd ../..
-done
+# Run automated test suite (8 tests, expect 8/8 pass)
+cd $BASE/k8s-apps/traffic-test
+./run-tests.sh team-a team-b team-c
+```
 
-cd network && terraform destroy -auto-approve && cd ..
+### Destroy
+
+```bash
+for team in team-c team-b team-a; do
+  terraform -chdir=$BASE/nodes/$team destroy -auto-approve &
+done && wait
+
+for team in team-c team-b team-a; do
+  terraform -chdir=$BASE/clusters/$team destroy \
+    -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve &
+done && wait
+
+terraform -chdir=$BASE/network destroy -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve
 ```
 
 ---
 
-## Pattern B: Namespace-as-a-Service
+## Pattern B: k8s-namespace-aas
 
-**Region:** us-east-1
-**Architecture:** 1 shared cluster, namespace-level DCF isolation + CRD self-service
+**Region:** us-east-1 · **Architecture:** 1 shared EKS cluster, namespace-level DCF + Calico isolation
+
+```bash
+BASE=blueprints/blueprints/k8s-namespace-aas/aws
+```
 
 ### Deploy
 
 ```bash
-cd blueprints/namespace-aas/aws
+# Layer 1: Network (~8 min)
+terraform -chdir=$BASE/network init
+terraform -chdir=$BASE/network apply -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve
 
-# Layer 1: Network (~5-8 min)
-cd network
-terraform init
-terraform apply -auto-approve
-cd ..
+# Layer 2: Cluster (~15 min)
+terraform -chdir=$BASE/clusters/shared init
+terraform -chdir=$BASE/clusters/shared apply \
+  -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve
 
-# Layer 2: Cluster (~10-15 min)
-cd clusters/shared
-terraform init
-terraform apply -auto-approve
-cd ../..
+# Layer 3: Nodes (~8 min)
+terraform -chdir=$BASE/nodes/shared init
+terraform -chdir=$BASE/nodes/shared apply -auto-approve
 
-# Add IAM role for kubectl access
-ROLE_ARN=$(aws iam list-roles --query 'Roles[?contains(RoleName,`SubAccountAdmin`)].Arn' --output text)
-aws eks create-access-entry --cluster-name naas-shared-eks --region us-east-1 --principal-arn "$ROLE_ARN"
-aws eks associate-access-policy --cluster-name naas-shared-eks --region us-east-1 \
-  --principal-arn "$ROLE_ARN" \
-  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-  --access-scope type=cluster
+# Layer 4: NetworkPolicy CRDs
+CLUSTER=$(terraform -chdir=$BASE/network output -raw shared_cluster_name)
+aws eks update-kubeconfig --name $CLUSTER --alias naas-shared --region us-east-1
+kubectl --context naas-shared apply -f $BASE/k8s-apps/dcf-crd/network-policies.yaml
+```
 
-# Layer 3: Nodes (~5-8 min)
-cd nodes/shared
-terraform init
-terraform apply -auto-approve
-cd ../..
+### Test
+
+```bash
+# Create test pods per namespace
+for ns in team-a team-b team-c; do
+  kubectl --context naas-shared create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
+  kubectl --context naas-shared -n $ns run nginx --image=nginx:alpine --port=80 --restart=Never
+  kubectl --context naas-shared -n $ns run netshoot \
+    --image=nicolaka/netshoot --command -- sleep infinity --restart=Never
+  kubectl --context naas-shared -n $ns expose pod nginx \
+    --port=443 --target-port=80 --name="${ns}-svc"
+done
+
+# Wait for pods
+for ns in team-a team-b team-c; do
+  kubectl --context naas-shared wait --for=condition=Ready pod/netshoot -n $ns --timeout=60s
+done
+
+# Expected: team-a→team-b PASS, team-a→team-c BLOCKED, team-c→team-b BLOCKED
+kubectl --context naas-shared -n team-a exec netshoot -- curl -m5 http://team-b-svc.team-b.svc.cluster.local:443
+kubectl --context naas-shared -n team-a exec netshoot -- curl -m5 http://team-c-svc.team-c.svc.cluster.local:443
+```
+
+### Destroy
+
+```bash
+kubectl --context naas-shared delete -f $BASE/k8s-apps/dcf-crd/ --ignore-not-found
+terraform -chdir=$BASE/nodes/shared destroy -auto-approve
+terraform -chdir=$BASE/clusters/shared destroy -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve
+terraform -chdir=$BASE/network destroy -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve
+```
+
+---
+
+## Pattern C: k8s-prod-nonprod-hybrid (Recommended)
+
+**Region:** us-east-2 · **Architecture:** 2 EKS clusters (prod/nonprod), two-layer DCF isolation
+
+```bash
+BASE=blueprints/blueprints/k8s-prod-nonprod-hybrid/aws
+```
+
+### Deploy
+
+```bash
+# Layer 1: Network (~8 min)
+terraform -chdir=$BASE/network init
+terraform -chdir=$BASE/network apply -var="aws_account_name=lab-test-aws" -auto-approve
+
+# Layer 2: Clusters — parallel (~15 min)
+for env in prod nonprod; do
+  terraform -chdir=$BASE/clusters/$env init
+  terraform -chdir=$BASE/clusters/$env apply \
+    -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve &
+done && wait
+
+# Layer 3: Nodes — parallel (~8 min)
+for env in prod nonprod; do
+  terraform -chdir=$BASE/nodes/$env init
+  terraform -chdir=$BASE/nodes/$env apply -auto-approve &
+done && wait
 
 # Layer 4: Namespaces + CRDs
-aws eks update-kubeconfig --name naas-shared-eks --region us-east-1
-kubectl apply -f k8s-apps/dcf-crd/namespace-setup.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-team-a.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-team-b.yaml
-kubectl apply -f k8s-apps/dcf-crd/webgrouppolicy-team-b.yaml
+PREFIX=$(terraform -chdir=$BASE/network output -raw name_prefix 2>/dev/null || echo "pc2")
+aws eks update-kubeconfig --name "${PREFIX}-prod" --alias pc2-prod --region us-east-2
+aws eks update-kubeconfig --name "${PREFIX}-nonprod" --alias pc2-nonprod --region us-east-2
+
+kubectl --context pc2-prod apply -f $BASE/k8s-apps/dcf-crd/prod-namespaces.yaml
+kubectl --context pc2-prod apply -f $BASE/k8s-apps/dcf-crd/firewallpolicy-prod.yaml
+kubectl --context pc2-nonprod apply -f $BASE/k8s-apps/dcf-crd/nonprod-namespaces.yaml
+kubectl --context pc2-nonprod apply -f $BASE/k8s-apps/dcf-crd/firewallpolicy-nonprod.yaml
 ```
 
-### Verify
+### Test
 
 ```bash
-aws eks update-kubeconfig --name naas-shared-eks --region us-east-1
-kubectl get nodes
-kubectl get ns
-kubectl get firewallpolicies -A  # Aviatrix CRDs
-kubectl get webgrouppolicies -A
+PROD_IP=$(kubectl --context pc2-prod -n default get pod nginx -o jsonpath='{.status.podIP}' 2>/dev/null)
+NONPROD_IP=$(kubectl --context pc2-nonprod -n default get pod nginx -o jsonpath='{.status.podIP}' 2>/dev/null)
 
-# Check CoPilot:
-#   Security > Distributed Cloud Firewall — verify namespace SmartGroups have members
-#   Cloud Assets > Kubernetes — verify cluster discovered
+# prod → nonprod: BLOCKED (DENY rule 10)
+kubectl --context pc2-prod exec netshoot -- curl -m10 http://$NONPROD_IP:80
+
+# nonprod → prod: BLOCKED (DENY rule 11)
+kubectl --context pc2-nonprod exec netshoot -- curl -m10 http://$PROD_IP:80
+
+# prod egress: PASS
+kubectl --context pc2-prod exec netshoot -- curl -m10 https://registry.k8s.io
 ```
 
-### Destroy (reverse order)
+### Destroy
 
 ```bash
-cd blueprints/namespace-aas/aws
-
-kubectl delete -f k8s-apps/dcf-crd/ --ignore-not-found
-cd nodes/shared && terraform destroy -auto-approve && cd ../..
-cd clusters/shared && terraform destroy -auto-approve && cd ../..
-cd network && terraform destroy -auto-approve && cd ..
-```
-
----
-
-## Pattern C: Prod/Non-Prod + NS-aaS (Recommended)
-
-**Region:** us-east-2
-**Architecture:** Separate prod + nonprod clusters, two-layer DCF (environment + namespace)
-
-### Deploy
-
-```bash
-cd blueprints/prod-nonprod-hybrid/aws
-
-# Layer 1: Network (~5-8 min)
-cd network
-terraform init
-terraform apply -auto-approve
-cd ..
-
-# Layer 2: Clusters (~10-15 min each, run in parallel)
-cd clusters/prod
-terraform init
-terraform apply -auto-approve &
-cd ../..
-cd clusters/nonprod
-terraform init
-terraform apply -auto-approve &
-cd ../..
-wait
-
-# Add IAM role for kubectl access
-ROLE_ARN=$(aws iam list-roles --query 'Roles[?contains(RoleName,`SubAccountAdmin`)].Arn' --output text)
-for cluster in pc2-prod pc2-nonprod; do
-  aws eks create-access-entry --cluster-name $cluster --region us-east-2 --principal-arn "$ROLE_ARN"
-  aws eks associate-access-policy --cluster-name $cluster --region us-east-2 \
-    --principal-arn "$ROLE_ARN" \
-    --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-    --access-scope type=cluster
-done
-
-# Layer 3: Nodes (~5-8 min each, run in parallel)
-cd nodes/prod
-terraform init
-terraform apply -auto-approve &
-cd ../..
-cd nodes/nonprod
-terraform init
-terraform apply -auto-approve &
-cd ../..
-wait
-
-# Layer 4: Namespaces + CRDs
-aws eks update-kubeconfig --name pc2-prod --region us-east-2
-kubectl apply -f k8s-apps/dcf-crd/prod-namespaces.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-prod.yaml
-
-aws eks update-kubeconfig --name pc2-nonprod --region us-east-2
-kubectl apply -f k8s-apps/dcf-crd/nonprod-namespaces.yaml
-kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-nonprod.yaml
-```
-
-### Verify
-
-```bash
-# Prod cluster
-aws eks update-kubeconfig --name pc2-prod --region us-east-2
-kubectl get nodes
-kubectl get ns | grep -E "team|monitoring"
-
-# Non-prod cluster
-aws eks update-kubeconfig --name pc2-nonprod --region us-east-2
-kubectl get nodes
-kubectl get ns | grep -E "team|sandbox|monitoring"
-
-# Check CoPilot:
-#   Security > DCF — verify two-layer rules (env + namespace)
-#   Verify prod<->nonprod traffic is DENIED
-#   Verify nonprod cannot reach prod database spoke
-```
-
-### Destroy (reverse order)
-
-```bash
-cd blueprints/prod-nonprod-hybrid/aws
+kubectl --context pc2-prod delete -f $BASE/k8s-apps/dcf-crd/ --ignore-not-found
+kubectl --context pc2-nonprod delete -f $BASE/k8s-apps/dcf-crd/ --ignore-not-found
 
 for env in prod nonprod; do
-  cd nodes/$env && terraform destroy -auto-approve && cd ../..
-done
+  terraform -chdir=$BASE/nodes/$env destroy -auto-approve &
+done && wait
+
 for env in prod nonprod; do
-  cd clusters/$env && terraform destroy -auto-approve && cd ../..
-done
-cd network && terraform destroy -auto-approve && cd ..
+  terraform -chdir=$BASE/clusters/$env destroy \
+    -var="aviatrix_aws_account_name=lab-test-aws" -auto-approve &
+done && wait
+
+terraform -chdir=$BASE/network destroy -var="aws_account_name=lab-test-aws" -auto-approve
 ```
 
 ---
@@ -372,97 +293,46 @@ cd network && terraform destroy -auto-approve && cd ..
 ## Validation Checklist
 
 ### Network Layer
-- [ ] Transit Gateway visible in CoPilot
-- [ ] All Spoke Gateways attached to transit (green status)
-- [ ] SNAT policies active on spoke gateways
-- [ ] Route tables programmed (software-defined routing)
+- [ ] Transit Gateway visible in CoPilot Topology
+- [ ] All Spoke Gateways attached and green
+- [ ] SNAT policies active on each spoke
+- [ ] DCF enabled: `aviatrix_distributed_firewalling_config` applied
 
 ### DCF
-- [ ] "Enforcement on Kubernetes" shows Enabled in CoPilot
-- [ ] SmartGroups created and showing members
-- [ ] DCF ruleset active with correct priority ordering
-- [ ] WebGroups resolving (EKS required services)
-- [ ] Geo-blocking and ThreatIQ SmartGroups active
+- [ ] DCF policy group created (`aviatrix_dcf_policy_group`)
+- [ ] Ruleset attached with correct priorities
+- [ ] SmartGroups showing members (VPC-type or K8s namespace-type)
+- [ ] WebGroups resolving (EKS required services, docker.io)
+- [ ] Geo-blocking and ThreatIQ active
 
 ### Kubernetes
-- [ ] EKS clusters ACTIVE
-- [ ] Nodes in Ready state
-- [ ] k8s-firewall Helm chart installed (CRDs available)
+- [ ] EKS clusters ACTIVE, nodes Ready
+- [ ] Aviatrix controller can inventory cluster (check CoPilot > Kubernetes)
+- [ ] k8s-firewall Helm chart installed (`kubectl get crd | grep aviatrix`)
+- [ ] Calico running: `kubectl get pods -n calico-system`
 - [ ] Namespaces created (Pattern B and C)
-- [ ] FirewallPolicy CRDs applied
+- [ ] NetworkPolicies applied (Pattern B)
 
-### Recommendations (if enabled)
-- [ ] `enable_network_policy`: Calico pods running — `kubectl get pods -n tigera-operator`
-- [ ] `enable_gatekeeper`: Gatekeeper webhook active — `kubectl get pods -n gatekeeper-system`
-- [ ] `enable_external_secrets`: Operator running — `kubectl get pods -n external-secrets`
-- [ ] `enable_falco`: Falco daemonset running — `kubectl get pods -n falco`
-- [ ] `enable_prometheus_stack`: Prometheus + Grafana running — `kubectl get pods -n monitoring`
-- [ ] `enable_fluent_bit`: Fluent Bit daemonset running — `kubectl get pods -n logging`
-- [ ] `enable_node_termination_handler`: NTH running — `kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-node-termination-handler`
-- [ ] `enable_cluster_autoscaler`: Autoscaler running — `kubectl get pods -n kube-system -l app.kubernetes.io/name=cluster-autoscaler`
-- [ ] `enable_velero`: Velero + daily backup schedule — `kubectl get pods -n velero && kubectl get schedules -n velero`
-- [ ] `enable_control_plane_logging`: CloudWatch log group exists — `aws logs describe-log-groups --log-group-name-prefix /aws/eks/`
-- [ ] `enable_state_locking`: DynamoDB table exists — `aws dynamodb describe-table --table-name <table>`
-
-### Connectivity Tests
-- [ ] Pod-to-pod within same cluster: works
-- [ ] Pod-to-service cross-cluster (permitted pair): works via transit
-- [ ] Pod-to-service cross-cluster (denied pair): blocked by DCF
-- [ ] Pod-to-internet (approved WebGroup): works
-- [ ] Pod-to-internet (unapproved): blocked
-- [ ] Pattern C: nonprod-to-prod: DENIED (both directions)
-- [ ] Pattern C: nonprod-to-prod-db: DENIED
+### Traffic Tests
+- [ ] Permitted cross-cluster/namespace flows: working
+- [ ] Denied flows: blocked (timeout, not refused)
+- [ ] Approved egress (registry.k8s.io): working
+- [ ] Default deny internet: blocked
+- [ ] Pattern C: nonprod → prod DENIED both directions
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
 | Issue | Cause | Fix |
-|-------|-------|-----|
-| VPC/VNet name already exists | Orphaned resources from failed run | Delete via Aviatrix API or rename prefix |
-| DCF attachment point conflict | Multiple `aviatrix_dcf_ruleset` on same controller | Use `aviatrix_distributed_firewalling_policy_list` instead |
-| EKS CoreDNS DEGRADED | No nodes deployed yet | Deploy Layer 3 (nodes) — resolves automatically |
-| SmartGroups empty | K8s clusters not discovered | Enable "Enforcement on Kubernetes" + wait for discovery |
-| kubectl unauthorized | IAM role not in cluster access | Add via `aws eks create-access-entry` |
-| VPC limit exceeded | Default 5 per region | Request increase to 20 via Service Quotas |
-| EIP limit exceeded | Default 5 per region | Request increase to 20 via Service Quotas |
-| SNAT not working | Pod CIDR not excluded from transit | Add `excluded_advertised_spoke_routes` on transit |
-| `enable_segmentation` conflict | Can't use with `excluded_advertised_spoke_routes` | Remove `enable_segmentation` |
-
-### Aviatrix API Cleanup (orphaned resources)
-
-```bash
-# Login
-CID=$(curl -sk -X POST "https://$AVIATRIX_CONTROLLER_IP/v1/api" \
-  -d "action=login&username=$AVIATRIX_USERNAME&password=$AVIATRIX_PASSWORD" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['CID'])")
-
-# Detach spoke from transit
-curl -sk -X POST "https://$AVIATRIX_CONTROLLER_IP/v2/api" \
-  -H "Content-Type: application/json" \
-  -d "{\"action\":\"detach_spoke_from_transit_gw\",\"CID\":\"$CID\",\"spoke_gw\":\"<spoke-name>\"}"
-
-# Delete gateway
-curl -sk -X POST "https://$AVIATRIX_CONTROLLER_IP/v2/api" \
-  -H "Content-Type: application/json" \
-  -d "{\"action\":\"delete_container\",\"CID\":\"$CID\",\"cloud_type\":1,\"gw_name\":\"<gw-name>\"}"
-
-# Delete VPC from controller
-curl -sk -X POST "https://$AVIATRIX_CONTROLLER_IP/v2/api" \
-  -H "Content-Type: application/json" \
-  -d "{\"action\":\"delete_custom_vpc\",\"CID\":\"$CID\",\"cloud_type\":1,\"account_name\":\"lab-test-aws\",\"pool_name\":\"<vpc-name>\"}"
-
-# Note: Transit GWs with FireNet need terraform import + destroy
-```
-
----
-
-## Current Deployment Status
-
-| Pattern | Region | Network | Clusters | Nodes | CRDs |
-|---------|--------|---------|----------|-------|------|
-| A: Cluster-aaS | us-west-2 | DONE | Deploying | - | - |
-| B: Namespace-aaS | us-east-1 | DONE | DONE | DONE | Pending |
-| C: Prod/Non-Prod | us-east-2 | DONE | DONE | Pending | Pending |
+|---|---|---|
+| `AVXERR-DFW-0043` attachment conflict | Multiple blueprints share one controller | Each blueprint uses its own `aviatrix_dcf_policy_group` — verify it's not sharing an attachment point |
+| `AVXERR-DFW-0025` ruleset not found | Ruleset deleted from controller (drift) | `terraform state rm aviatrix_dcf_ruleset.*` then re-apply |
+| EKS nodes `ImagePullBackOff` | docker.io/quay.io blocked by DCF egress | Add registries to `eks_required` or `approved_egress` WebGroup |
+| Calico `429 Too Many Requests` | Docker Hub rate limit on anonymous pulls | Create imagePullSecret or push to ECR |
+| SmartGroups empty | Cluster not inventoried by controller | Check `aviatrix_kubernetes_cluster` resource, verify `use_csp_credentials = true` and EKS access entry for `aviatrix-role-app` |
+| `Unauthorized` in CoPilot K8s | Missing EKS access entry | Add `access_entries` block with `AmazonEKSViewPolicy` for controller IAM role |
+| kubectl `Unauthorized` | IAM role not in cluster access entries | `aws eks create-access-entry` + associate `AmazonEKSClusterAdminPolicy` |
+| VPC limit exceeded | Default 5 per region | Request increase via AWS Service Quotas |
+| SNAT not working | Pod CIDR not excluded from transit advertisements | Add `excluded_advertised_spoke_routes = var.pod_cidr` on transit module |
+| `enable_segmentation` conflict | Incompatible with `excluded_advertised_spoke_routes` | Remove `enable_segmentation` |
