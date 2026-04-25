@@ -87,7 +87,7 @@ enable_velero                   = true  # Cluster backup to S3
 **Region:** us-west-2 · **Architecture:** 3 dedicated EKS clusters, VPC-level DCF isolation
 
 ```bash
-BASE=blueprints/blueprints/k8s-cluster-aas/aws
+BASE=blueprints/k8s-cluster-aas/aws
 ```
 
 ### Deploy
@@ -156,7 +156,7 @@ terraform -chdir=$BASE/network destroy -var="aviatrix_aws_account_name=lab-test-
 **Region:** us-east-1 · **Architecture:** 1 shared EKS cluster, namespace-level DCF + Calico isolation
 
 ```bash
-BASE=blueprints/blueprints/k8s-namespace-aas/aws
+BASE=blueprints/k8s-namespace-aas/aws
 ```
 
 ### Deploy
@@ -220,7 +220,7 @@ terraform -chdir=$BASE/network destroy -var="aviatrix_aws_account_name=lab-test-
 **Region:** us-east-2 · **Architecture:** 2 EKS clusters (prod/nonprod), two-layer DCF isolation
 
 ```bash
-BASE=blueprints/blueprints/k8s-prod-nonprod-hybrid/aws
+BASE=blueprints/k8s-prod-nonprod-hybrid/aws
 ```
 
 ### Deploy
