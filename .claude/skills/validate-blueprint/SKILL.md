@@ -9,6 +9,7 @@ allowed-tools:
   - Bash(find *)
   - Bash(stat *)
   - Bash(git check-ignore *)
+  - Bash(rm -rf *.terraform*)
   - Read
   - Grep
   - Glob
@@ -69,14 +70,24 @@ These are the checks that would have caught the broken k8s-* blueprints. Each is
 
 This single check catches: missing module sources, broken external module paths, version constraint conflicts, missing required providers.
 
+**Simulate a fresh checkout.** A pre-existing `.terraform/` directory or `.terraform.lock.hcl` left over from a previous local run can produce *false positives* (stale lock file referencing an old provider version) or *false negatives* (cached modules masking a now-broken source). Before running init, strip both. The repo gitignores `.terraform.lock.hcl` for blueprints, so deleting it never affects tracked files — but verify with `git check-ignore` if you're unsure.
+
 For each leaf:
 ```bash
+# Verify the lock file is gitignored before deleting (one-time check per repo is fine)
+git check-ignore -q "$LEAF/.terraform.lock.hcl" || echo "WARN: lock file is tracked — preserve it"
+
+# Fresh-checkout simulation
+rm -rf "$LEAF/.terraform" "$LEAF/.terraform.lock.hcl"
+
 ( cd "$LEAF" && terraform init -backend=false -input=false -no-color ) 2>&1
 ```
 
 Capture stdout+stderr. Any non-zero exit = fail. Report the offending leaf path and the first error line.
 
 **Common failure pattern to flag explicitly**: `Error: Failed to download module` or `module not found` — usually means a `source = "../../../<sibling-blueprint>/modules/..."` reference points at something that doesn't exist.
+
+**If the lock file is *tracked* in git** (the blueprint commits `.terraform.lock.hcl`), skip the `rm` of the lock file — that file is part of the contract and a stale lock IS a real T1.1 failure. Use `git check-ignore -q` to decide. The Aviatrix Blueprints repo currently gitignores all `.terraform.lock.hcl` files, but other repos may differ.
 
 ### T1.2 Every leaf passes `terraform validate`
 
