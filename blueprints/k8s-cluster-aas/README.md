@@ -1,137 +1,134 @@
-# Pattern A: Cluster-as-a-Service
+# k8s-cluster-aas — Cluster-as-a-Service
 
-Dedicated EKS/AKS/GKE cluster per team with VPC-level isolation enforced by Aviatrix Distributed Cloud Firewall (DCF).
+Each team gets a **dedicated EKS cluster in its own VPC**. Network isolation is enforced by Aviatrix DCF at the VPC boundary — no team can reach another team's cluster without an explicit PERMIT rule.
 
 ## Architecture
 
 ```
-                    ┌─────────────────┐
-                    │  Aviatrix Transit│
-                    │    Gateway (Hub) │
-                    └──┬──────┬──────┬┘
-                       │      │      │
-              ┌────────┘      │      └────────┐
-              ▼               ▼               ▼
-        ┌───────────┐  ┌───────────┐  ┌───────────┐
-        │  Team-A   │  │  Team-B   │  │  Team-C   │
-        │  VPC/VNet │  │  VPC/VNet │  │  VPC/VNet │
-        │  + Spoke  │  │  + Spoke  │  │  + Spoke  │
-        │  + EKS    │  │  + EKS    │  │  + EKS    │
-        └───────────┘  └───────────┘  └───────────┘
-                               │
-                        ┌──────┴──────┐
-                        │ Database    │
-                        │ Spoke VPC   │
-                        └─────────────┘
+Transit GW (10.2.0.0/20)
+├── Team-A Spoke (10.10.0.0/20) ──── EKS cluster-a  [pods: 100.64.0.0/18]
+├── Team-B Spoke (10.11.0.0/20) ──── EKS cluster-b  [pods: 100.64.64.0/18]
+├── Team-C Spoke (10.12.0.0/20) ──── EKS cluster-c  [pods: 100.64.128.0/18]
+└── DB Spoke     (10.5.0.0/22)  ──── Shared database
 ```
 
-Each team gets its own VPC, spoke gateway, and Kubernetes cluster. Inter-team traffic is routed through the Aviatrix transit and subject to DCF rules.
+**VPCs:** 5 (transit + 3 team + DB) · **Clusters:** 3 · **Kubernetes:** 1.35
 
-## Supported CSPs
+### Pod Networking
+Pods use RFC 6598 overlay CIDR (`100.64.0.0/16`). Aviatrix SNAT translates pod IPs to the spoke gateway IP before traffic hits DCF. **DCF sees POST-SNAT traffic** — use VPC SmartGroups for source, hostname SmartGroups for destination.
 
-| Directory | Cloud | Clusters | Region Default |
-|-----------|-------|----------|----------------|
-| `aws/` | AWS (EKS) | team-a, team-b, team-c | us-west-2 |
-| `azure/` | Azure (AKS) | team-a, team-b, team-c | — |
-| `gcp/` | GCP (GKE) | team-a, team-b, team-c | — |
+### DCF Policy Layout
 
-## Layers
+| Priority | Action | Rule |
+|---|---|---|
+| 100–101 | DENY | Geo-block (IR, KP, RU) + ThreatIQ feeds |
+| 110 | PERMIT | team-a → team-b on TCP/443 |
+| 111 | PERMIT | team-b → team-a on TCP/8080 |
+| 120–123 | DENY | team-a ↔ team-c, team-b ↔ team-c (both directions) |
+| 150 | PERMIT | All clusters → EKS required services (ECR, S3, STS, EKS API…) |
+| 200 | DENY | Default deny public internet (non-RFC1918) |
 
-Layers must be deployed in order. Each layer reads outputs from the previous via `terraform_remote_state`.
+## Deployment
 
-| Layer | Directory | What It Creates | ~Time |
-|-------|-----------|-----------------|-------|
-| 1. Network | `{csp}/network/` | Transit GW, 3 team VPCs + spoke GWs, database spoke, Route53/DNS zone, SNAT policies | 5-8 min |
-| 2. Clusters | `{csp}/clusters/{team}/` | EKS/AKS/GKE control plane, VPC CNI config, IRSA/Workload Identity roles, Aviatrix cluster onboarding | 10-15 min each |
-| 3. Nodes | `{csp}/nodes/{team}/` | Managed node group, ENIConfig (AWS), k8s-firewall Helm chart, ALB Controller, ExternalDNS | 5-8 min each |
+```
+Layer 1: aws/network/            ← Transit, VPCs, Spokes, DNS, DCF  (~8 min)
+Layer 2: aws/clusters/team-*/    ← EKS control planes (parallel)    (~15 min)
+Layer 3: aws/nodes/team-*/       ← Node groups, Helm charts (parallel) (~8 min)
+```
 
-No Layer 4 (CRDs) — teams own their clusters and manage their own workloads.
+### Prerequisites
+- Aviatrix Controller with AWS account onboarded
+- AWS credentials with sufficient permissions
+- Terraform ≥ 1.5, Aviatrix provider ~> 8.2
 
-## Key Design Decisions
-
-- **Pod CIDR overlay**: All clusters share `100.64.0.0/16` (RFC 6598). Non-routable; Aviatrix SNAT translates pod traffic to spoke gateway IPs before transit.
-- **Isolation model**: VPC boundaries provide primary isolation. DCF SmartGroups use VPC membership for policy matching.
-- **SNAT policies**: 3 rules per spoke — pod-to-transit (east-west), pod-to-internet (egress), node-to-internet (node egress).
-- **Team admin**: Each team gets cluster-admin on their own cluster only.
-
-## Deploy (AWS Example)
+### Layer 1 — Network
 
 ```bash
-cd cluster-aas/aws
-
-# Layer 1
-cd network && terraform init && terraform apply -auto-approve && cd ..
-
-# Layer 2 (parallel)
-for team in team-a team-b team-c; do
-  (cd clusters/$team && terraform init && terraform apply -auto-approve) &
-done
-wait
-
-# Layer 3 (parallel)
-for team in team-a team-b team-c; do
-  (cd nodes/$team && terraform init && terraform apply -auto-approve) &
-done
-wait
+cd aws/network
+terraform init
+terraform apply -var="aviatrix_aws_account_name=<account>"
 ```
 
-## Destroy (Reverse Order)
+| Variable | Default | Description |
+|---|---|---|
+| `aviatrix_aws_account_name` | required | Aviatrix access account name |
+| `aws_region` | `us-west-2` | AWS region |
+| `name_prefix` | `caas` | Resource name prefix |
+| `random_suffix` | `true` | Append random hex (e.g. `caas-4462`) |
+| `pod_cidr` | `100.64.0.0/16` | Pod overlay CIDR |
+| `private_dns_zone_name` | `aws.aviatrixdemo.local` | Route53 private zone |
+
+### Layer 2 — Clusters (parallel)
 
 ```bash
-cd cluster-aas/aws
-
 for team in team-a team-b team-c; do
-  (cd nodes/$team && terraform destroy -auto-approve) &
-done
-wait
-
-for team in team-a team-b team-c; do
-  (cd clusters/$team && terraform destroy -auto-approve) &
-done
-wait
-
-cd network && terraform destroy -auto-approve && cd ..
+  terraform -chdir=aws/clusters/$team init
+  terraform -chdir=aws/clusters/$team apply \
+    -var="aviatrix_aws_account_name=<account>" -auto-approve &
+done && wait
 ```
 
-## Variables
+| Variable | Default | Description |
+|---|---|---|
+| `kubernetes_version` | `1.35` | EKS version |
+| `enable_network_policy` | `true` | Calico (policy-only mode) |
 
-### Network Layer
+### Layer 3 — Nodes (parallel)
+
+```bash
+for team in team-a team-b team-c; do
+  terraform -chdir=aws/nodes/$team init
+  terraform -chdir=aws/nodes/$team apply -auto-approve &
+done && wait
+```
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `name_prefix` | `caas` | Resource naming prefix |
-| `aviatrix_aws_account_name` | — | Aviatrix-onboarded AWS account name (required) |
-| `aws_region` | `us-west-2` | Target region |
-| `transit_cidr` | `10.2.0.0/20` | Transit VPC CIDR |
-| `team_a_vpc_cidr` | `10.10.0.0/20` | Team A VPC CIDR |
-| `team_b_vpc_cidr` | `10.11.0.0/20` | Team B VPC CIDR |
-| `team_c_vpc_cidr` | `10.12.0.0/20` | Team C VPC CIDR |
-| `db_vpc_cidr` | `10.5.0.0/22` | Database spoke CIDR |
-| `pod_cidr` | `100.64.0.0/16` | Shared pod overlay CIDR |
-
-### Cluster Layer
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `kubernetes_version` | `1.31` | EKS Kubernetes version |
-| `enable_private_endpoint` | `false` | Private-only API server (requires VPN/bastion) |
-| `enable_control_plane_logging` | `false` | Audit, API, authenticator logs to CloudWatch |
-
-### Nodes Layer
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `node_group_config.min_size` | `1` | Minimum nodes |
-| `node_group_config.max_size` | `3` | Maximum nodes |
-| `node_group_config.desired_size` | `2` | Desired node count |
+|---|---|---|
 | `node_group_config.instance_type` | `t3.large` | EC2 instance type |
-| `node_group_config.capacity_type` | `SPOT` | SPOT or ON_DEMAND |
+| `node_group_config.desired_size` | `2` | Node count |
+| `node_group_config.capacity_type` | `SPOT` | `SPOT` or `ON_DEMAND` |
 
-## Prerequisites
+## Traffic Tests
 
-- Aviatrix Controller with CoPilot
-- Aviatrix-onboarded cloud account
-- Terraform >= 1.5, AWS CLI >= 2.61, kubectl >= 1.28
-- Sufficient VPC/EIP quotas (6 VPCs, 12 EIPs per region)
+```bash
+# Configure kubectl contexts
+aws eks update-kubeconfig --name <cluster-name> --alias team-a --region us-west-2
 
-See [DEPLOYMENT-WORKFLOW.md](../DEPLOYMENT-WORKFLOW.md) for full details.
+# Deploy test containers
+for team in team-a team-b team-c; do
+  kubectl apply -f aws/k8s-apps/traffic-test/$team/
+done
+
+# Run automated tests
+cd aws/k8s-apps/traffic-test && ./run-tests.sh team-a team-b team-c
+```
+
+Expected: **8/8 pass**
+
+| Test | Expected | DCF Rule |
+|---|---|---|
+| team-a → team-b:443 | PASS | PERMIT 110 |
+| team-b → team-a:8080 | PASS | PERMIT 111 |
+| team-a ↔ team-c | BLOCKED | DENY 120/121 |
+| team-b ↔ team-c | BLOCKED | DENY 122/123 |
+| egress registry.k8s.io | PASS | PERMIT 150 |
+| egress example.com | BLOCKED | DEFAULT DENY 200 |
+
+## Destroy (reverse order)
+
+```bash
+for team in team-a team-b team-c; do terraform -chdir=aws/nodes/$team destroy -auto-approve & done && wait
+for team in team-a team-b team-c; do terraform -chdir=aws/clusters/$team destroy -var="aviatrix_aws_account_name=<account>" -auto-approve & done && wait
+terraform -chdir=aws/network destroy -var="aviatrix_aws_account_name=<account>" -auto-approve
+```
+
+## Key Design Notes
+
+- **excluded_advertised_spoke_routes goes on the TRANSIT**, not spokes — software-defined routing, not BGP
+- **Always deny BOTH directions** between isolated teams — asymmetric rules cause traffic asymmetry issues
+- **Do NOT use `0.0.0.0/0` for default deny** — blocks RFC1918 east-west traffic. Use the built-in Public Internet SmartGroup instead
+- **Calico in policy-only mode** — VPC CNI handles pod networking; Calico adds Kubernetes NetworkPolicy enforcement
+
+## When to Use
+
+Choose this pattern when teams need **full cluster autonomy**, different Kubernetes versions, or strict compliance isolation. For a cost-effective shared alternative, see [k8s-namespace-aas](../k8s-namespace-aas/). For the recommended balanced approach, see [k8s-prod-nonprod-hybrid](../k8s-prod-nonprod-hybrid/).
