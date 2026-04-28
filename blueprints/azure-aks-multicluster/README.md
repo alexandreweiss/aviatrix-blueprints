@@ -41,6 +41,32 @@ The Azure service principal used must have permissions to create and manage:
 
 The built-in **Contributor** role at the subscription scope is sufficient for a lab environment. For production, scope permissions to the target resource group.
 
+### Azure Subscription Quotas
+
+This blueprint deploys 9 VMs across two vCPU families. **Default subscription quota of 10 regional vCPUs is not enough.** Verify and request increases before deploying:
+
+| Quota | Used by blueprint | Recommended limit |
+|-------|-------------------|-------------------|
+| **Total Regional vCPUs** | 17 (transit + 3 spoke GWs + 4 AKS nodes + DB VM) | **≥ 30** |
+| **Standard DSv3 Family vCPUs** | 8 (4 Aviatrix gateways × 2 vCPU each) | ≥ 16 |
+| **Standard BS Family vCPUs** | 9 (4 AKS nodes × 2 vCPU + DB VM × 1 vCPU) | ≥ 16 |
+| **Standard Public IP Addresses** | 2 (one per Application Gateway) | default sufficient |
+
+Check current usage and limits:
+```bash
+az vm list-usage -l eastus2 -o table | grep -E "Total Regional|Standard DSv3|Standard BS Family"
+```
+
+Request a quota increase via Azure Portal (Subscriptions → Usage + quotas → Request increase) or programmatically:
+```bash
+TOKEN=$(az account get-access-token --query accessToken -o tsv)
+curl -X PATCH \
+  "https://management.azure.com/subscriptions/<SUB_ID>/providers/Microsoft.Compute/locations/eastus2/providers/Microsoft.Quota/quotas/cores?api-version=2023-02-01" \
+  -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
+  -d '{"properties":{"limit":{"limitObjectType":"LimitValue","value":30},"name":{"value":"cores"}}}'
+```
+Increases to ≤ 30 vCPUs are typically auto-approved within a few minutes.
+
 #### Azure Region Naming
 
 The Aviatrix provider and the Azure provider use different region name formats. Both must be specified:
@@ -286,9 +312,9 @@ terraform apply
 
 Steps 3 and 4 can run in parallel in separate terminals.
 
-### Step 5: Deploy Frontend Node Pool and Add-ons
+### Step 5: Deploy Frontend Helm Add-ons
 
-The node layer adds the managed user node pool and installs Helm charts: NGINX Ingress Controller (internal LB at static IP `10.10.0.200`), ExternalDNS (Azure Private DNS), and Aviatrix k8s-firewall (DCF CRDs).
+The node layer installs Helm charts: NGINX Ingress Controller (internal LB at static IP `10.10.0.200`), ExternalDNS (Azure Private DNS), and Aviatrix k8s-firewall (DCF CRDs). The default node pool from Step 3 is the only AKS node pool — there is no separate user node pool.
 
 ```bash
 cd ../../nodes/frontend/
@@ -296,19 +322,18 @@ cd ../../nodes/frontend/
 # Initialize Terraform
 terraform init
 
-# Deploy node pool and Helm charts (~7-10 minutes)
+# Deploy Helm charts (~3-5 minutes)
 terraform apply
 ```
 
 **What's created:**
-- AKS user node pool (Standard_D2s_v3, autoscale min=1 max=3)
 - NGINX Ingress Controller — internal Azure LB at `10.10.0.200` in the `frontend-system` subnet
 - ExternalDNS — creates Private DNS A records for annotated Services and Ingresses
-- Aviatrix k8s-firewall — installs `FirewallPolicy` and `WebGroupPolicy` CRDs
+- Aviatrix k8s-firewall — installs `FirewallPolicy` and `WebgroupPolicy` CRDs
 
 After this step, the frontend AppGW backend probe will become **Healthy** within ~60 seconds.
 
-### Step 6: Deploy Backend Node Pool and Add-ons (Parallel with Step 5)
+### Step 6: Deploy Backend Helm Add-ons (Parallel with Step 5)
 
 ```bash
 cd ../backend/
@@ -320,7 +345,7 @@ terraform init
 terraform apply
 ```
 
-**What's created:** Same as frontend nodes, with NGINX at `10.20.0.200` in the `backend-system` subnet.
+**What's created:** Same Helm add-ons as the frontend, with NGINX at `10.20.0.200` in the `backend-system` subnet.
 
 Steps 5 and 6 can run in parallel in separate terminals.
 
@@ -853,18 +878,18 @@ ls -la clusters/frontend/terraform.tfstate
 | Component | Resource Type | Qty | VM Size | Notes |
 |-----------|--------------|-----|---------|-------|
 | **Aviatrix Gateways** | | | | |
-| Transit Gateway | Azure VM | 1 | Standard_B2ms | FireNet-enabled, no HA |
-| Frontend Spoke GW | Azure VM | 1 | Standard_B2ms | Single IP SNAT, no HA |
-| Backend Spoke GW | Azure VM | 1 | Standard_B2ms | Single IP SNAT, no HA |
-| DB Spoke GW | Azure VM | 1 | Standard_B2ms | Single IP SNAT, no HA |
+| Transit Gateway | Azure VM | 1 | Standard_D2s_v3 | No HA, FireNet OFF |
+| Frontend Spoke GW | Azure VM | 1 | Standard_D2s_v3 | Single IP SNAT, no HA |
+| Backend Spoke GW | Azure VM | 1 | Standard_D2s_v3 | Single IP SNAT, no HA |
+| DB Spoke GW | Azure VM | 1 | Standard_D2s_v3 | Single IP SNAT, no HA |
 | **AKS Clusters** | | | | |
-| Frontend Control Plane | AKS | 1 | — | K8s 1.32, Free tier |
-| Backend Control Plane | AKS | 1 | — | K8s 1.32, Free tier |
+| Frontend Control Plane | AKS | 1 | — | K8s 1.33, Free tier |
+| Backend Control Plane | AKS | 1 | — | K8s 1.33, Free tier |
 | **AKS Node Pools** | | | | |
-| Frontend Node Pool | Azure VMSS | 2 (desired) | Standard_D2s_v3 | min=1, max=3 |
-| Backend Node Pool | Azure VMSS | 2 (desired) | Standard_D2s_v3 | min=1, max=3 |
+| Frontend Node Pool | Azure VMSS | 2 (desired) | Standard_B2s | min=1, max=3 |
+| Backend Node Pool | Azure VMSS | 2 (desired) | Standard_B2s | min=1, max=3 |
 | **Test VM** | | | | |
-| DB Linux VM | Azure VM | 1 | Standard_B2s | DB spoke, Apache |
+| DB Linux VM | Azure VM | 1 | Standard_B1s | DB spoke, Apache |
 
 **Total VMs (at desired state):** 10
 
@@ -901,14 +926,16 @@ ls -la clusters/frontend/terraform.tfstate
 
 | Resource | VM Size | Qty | Hourly Rate | Monthly (730 hrs) |
 |----------|---------|-----|-------------|-------------------|
-| Aviatrix Transit GW | Standard_B2ms | 1 | $0.0832 | $60.74 |
-| Aviatrix Frontend Spoke GW | Standard_B2ms | 1 | $0.0832 | $60.74 |
-| Aviatrix Backend Spoke GW | Standard_B2ms | 1 | $0.0832 | $60.74 |
-| Aviatrix DB Spoke GW | Standard_B2ms | 1 | $0.0832 | $60.74 |
-| AKS Frontend Nodes | Standard_D2s_v3 | 2 | $0.0960 each | $140.16 |
-| AKS Backend Nodes | Standard_D2s_v3 | 2 | $0.0960 each | $140.16 |
-| DB Test VM | Standard_B2s | 1 | $0.0416 | $30.37 |
-| **Subtotal Compute** | | | | **$553.65** |
+| Aviatrix Transit GW | Standard_D2s_v3 | 1 | $0.0960 | $70.08 |
+| Aviatrix Frontend Spoke GW | Standard_D2s_v3 | 1 | $0.0960 | $70.08 |
+| Aviatrix Backend Spoke GW | Standard_D2s_v3 | 1 | $0.0960 | $70.08 |
+| Aviatrix DB Spoke GW | Standard_D2s_v3 | 1 | $0.0960 | $70.08 |
+| AKS Frontend Nodes | Standard_B2s | 2 | $0.0416 each | $60.74 |
+| AKS Backend Nodes | Standard_B2s | 2 | $0.0416 each | $60.74 |
+| DB Test VM | Standard_B1s | 1 | $0.0124 | $9.05 |
+| **Subtotal Compute** | | | | **$410.85** |
+
+> **Family-quota choice:** Aviatrix gateways use `Standard_D2s_v3` (DSv3 family) and AKS nodes use `Standard_B2s` (BS family). This deliberate split avoids one family saturating at the default 10-vCPU subscription quota. See [Azure Subscription Quotas](#azure-subscription-quotas).
 
 ### AKS Control Plane
 
@@ -962,13 +989,13 @@ ls -la clusters/frontend/terraform.tfstate
 
 | Category | Monthly Cost |
 |----------|-------------|
-| Compute (VMs) | $553.65 |
+| Compute (VMs) | $410.85 |
 | AKS Control Plane (Free tier) | $0.00 |
 | Application Gateways | ~$370.84 |
 | Networking (IPs, LBs, DNS) | ~$44.70 |
 | Storage (OS disks) | ~$88.71 |
 | Data Transfer | ~$1.90 |
-| **TOTAL (estimated)** | **~$1,060/month** |
+| **TOTAL (estimated)** | **~$917/month** |
 
 ### Cost Breakdown
 
@@ -1025,19 +1052,63 @@ Data Transfer            ░░░░░░░░░░░░░░░░░░�
 
 | Component | Version |
 |-----------|---------|
-| Terraform | >= 1.5 |
-| Aviatrix Provider | ~> 8.2 |
-| AzureRM Provider | ~> 4.0 |
-| TLS Provider | ~> 4.0 |
-| mc-transit module | ~> 8.0 |
-| mc-spoke module | ~> 8.0 |
-| Kubernetes | 1.32 |
+| Terraform | 1.14.0 |
+| Aviatrix Controller | 9.0.10 |
+| Aviatrix Provider | 8.2.0 |
+| AzureRM Provider | 4.70.0 |
+| TLS Provider | 4.2.1 |
+| mc-transit module | 8.2.0 |
+| mc-spoke module | 8.2.3 |
+| Kubernetes | 1.33.8 |
 | NGINX Ingress Chart | 4.12.0 |
-| ExternalDNS Chart | 1.15.x |
-| k8s-firewall Chart | Latest |
+| ExternalDNS Chart | 1.15.0 |
+| k8s-firewall Chart | 8.2.0 |
 | Gatus | v5.14.0 |
 
 ---
+
+## Outputs
+
+Each layer publishes outputs that the next layer (or operators) consume.
+
+### `network/`
+
+| Output | Type | Source / use |
+|---|---|---|
+| `frontend_appgw_public_ip`, `backend_appgw_public_ip` | string | Open Gatus dashboards |
+| `frontend_spoke_gateway_private_ip`, `backend_spoke_gateway_private_ip` | string | Used by `azurerm_route` for the AKS UDR default route |
+| `frontend_spoke_gateway_public_ip`, `backend_spoke_gateway_public_ip` | string | Auto-included in AKS `authorized_ip_ranges` |
+| `transit_gateway_name`, `transit_vnet_id` | string | Reference / docs |
+| `frontend_vnet_id`, `frontend_resource_group_name`, `frontend_nodes_subnet_id`, `frontend_system_subnet_id` (and `backend_*` equivalents) | string | Read by clusters/ layer |
+| `frontend_route_table_id`, `backend_route_table_id` | string | Read by clusters/ for AKS identity role assignment |
+| `frontend_cluster_name`, `backend_cluster_name` | string | Names AKS adopts |
+| `private_dns_zone_id`, `private_dns_zone_name`, `dns_resource_group_name` | string | Workload Identity for ExternalDNS |
+| `db_vm_private_ip`, `db_vm_name` | string | DB target IP for east-west tests |
+| `pod_cidr`, `service_cidr`, `dns_service_ip` | string | Cluster network plumbing |
+| `dcf_ruleset_uuid`, `smartgroup_*_uuid`, `webgroup_*_uuid` | string | DCF references for K8s CRD policies |
+
+### `clusters/{frontend,backend}/`
+
+| Output | Sensitive | Use |
+|---|---|---|
+| `cluster_name`, `cluster_id`, `cluster_fqdn` | no | Names / Azure resource ID |
+| `host`, `client_certificate`, `client_key`, `cluster_ca_certificate`, `kube_config_raw` | yes | Consumed by nodes/ Helm + kubernetes providers |
+| `oidc_issuer_url` | no | Workload Identity federation |
+| `kubelet_identity_object_id`, `aks_identity_principal_id`, `external_dns_client_id` | no | Role assignment + Workload Identity binding |
+| `resource_group_name`, `node_resource_group` | no | The `MC_*` group AKS auto-creates |
+| `kubectl_config_command` | no | Copy/paste-friendly `az aks get-credentials …` |
+
+### `nodes/{frontend,backend}/`
+
+No outputs — this layer only installs Helm releases.
+
+## Known Limitations
+
+These are intentional behaviors a deployer should be aware of:
+
+- **DCF egress allowlist is descriptive, not enforcing.** The DCF default action on this controller is PERMIT and the ruleset has no final DENY rule, so destinations not listed in any WebGroup (e.g., `example.com`, `iana.org`) still reach the internet. The blueprint's WebGroup-based PERMIT rules show the intended pattern; converting the allowlist to enforcement requires either changing the default action to DENY or adding a final low-priority DENY. If you do that, also add explicit allows for UDP/53 (DNS) and UDP/123 (NTP) so AKS itself keeps working.
+- **Hostname-based SmartGroups for private FQDNs are not active.** `enable_vpc_dns_server = true` consistently fails the controller's DNS check on Controller 9.0.10 with the modules' default GW DNS configuration, so the blueprint disables it on every gateway. Hostname SmartGroups for the public Internet still work (controller resolves externally), but `frontend.azure.aviatrixdemo.local` / `backend.azure.aviatrixdemo.local` / `db.azure.aviatrixdemo.local` SmartGroups won't resolve targets — east-west enforcement falls through to the VNet-based SmartGroups, which is sufficient for the demonstrated traffic flows.
+- **ThreatGuard test IP may be stale.** `102.130.117.167` was an active ThreatGuard feed IP at the time the blueprint was authored. Replace it in `k8s-apps/{frontend,backend}/gatus.yaml` if your controller's current feed differs (CoPilot → Security → ThreatIQ).
 
 ## Additional Resources
 
