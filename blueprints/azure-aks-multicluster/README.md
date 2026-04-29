@@ -17,7 +17,7 @@ Before deploying this infrastructure, ensure you have the following prerequisite
 |-----------|-------------|-------|
 | **Aviatrix Controller** | Version compatible with provider ~> 8.2 | Must be deployed and accessible |
 | **Aviatrix CoPilot** | Recommended | Required for DCF visualization and SmartGroups UI |
-| **Azure Account Onboarded** | Account registered in Controller | Use the exact account name in `terraform.tfvars` |
+| **Azure Account Onboarded** | Account registered in Controller | Use the exact account name in `terraform.tfvars`. See [Onboard an Azure account](https://docs.aviatrix.com/documentation/latest/network-security/onboarding-azure.html) if you don't have one yet. |
 
 ### Local Tools
 
@@ -43,18 +43,39 @@ The built-in **Contributor** role at the subscription scope is sufficient for a 
 
 ### Azure Subscription Quotas
 
-This blueprint deploys 9 VMs across two vCPU families. **Default subscription quota of 10 regional vCPUs is not enough.** Verify and request increases before deploying:
+This blueprint deploys 9 VMs across two vCPU families. The defaults on a clean subscription are usually enough — what matters is **available** capacity (limit − currently used), not the limit alone. If you already have other VMs running you may need a quota increase.
 
-| Quota | Used by blueprint | Recommended limit |
-|-------|-------------------|-------------------|
-| **Total Regional vCPUs** | 17 (transit + 3 spoke GWs + 4 AKS nodes + DB VM) | **≥ 30** |
-| **Standard DSv3 Family vCPUs** | 8 (4 Aviatrix gateways × 2 vCPU each) | ≥ 16 |
-| **Standard BS Family vCPUs** | 9 (4 AKS nodes × 2 vCPU + DB VM × 1 vCPU) | ≥ 16 |
-| **Standard Public IP Addresses** | 2 (one per Application Gateway) | default sufficient |
+| Quota | Needed by blueprint | Default per-region limit | Headroom (recommended) |
+|-------|---------------------|--------------------------|------------------------|
+| **Total Regional vCPUs** | 17 (transit + 3 spoke GWs + 4 AKS nodes + DB VM) | varies (often 20–30) | ≥ 30 |
+| **Standard DSv3 Family vCPUs** | 8 (4 Aviatrix gateways × 2 vCPU each) | 10 | ≥ 16 |
+| **Standard BS Family vCPUs** | 9 (4 AKS nodes × 2 vCPU + DB VM × 1 vCPU) | 10 | ≥ 16 |
+| **Standard Public IP Addresses** | 2 (one per Application Gateway) | default sufficient | — |
 
 Check current usage and limits:
 ```bash
 az vm list-usage -l eastus2 -o table | grep -E "Total Regional|Standard DSv3|Standard BS Family"
+```
+
+**Fail-fast pre-flight check** — verifies available (limit − used) ≥ blueprint requirement, run before `terraform apply`:
+```bash
+REGION=eastus2
+az vm list-usage -l "$REGION" --query "[?contains(name.value,'cores') || contains(name.value,'standardDSv3Family') || contains(name.value,'standardBSFamily')].{name:localName, used:currentValue, limit:limit}" -o tsv | \
+  awk -F '\t' '
+    function check(name, used, limit, need) {
+      avail = limit - used
+      if (avail < need) {
+        printf "FAIL  %-35s available=%d (limit %d − used %d) < %d needed\n", name, avail, limit, used, need
+        bad++
+      } else {
+        printf "OK    %-35s available=%d (limit %d − used %d) ≥ %d needed\n", name, avail, limit, used, need
+      }
+    }
+    /^Total Regional vCPUs\t/   { check($1, $2, $3, 17) }
+    /^Standard DSv3 Family/     { check($1, $2, $3, 8) }
+    /^Standard BSv?2? Family/   { check($1, $2, $3, 9) }
+    END { if (bad) { print "Increase the failed quotas above before deploying."; exit 1 } else { print "Quota OK" } }
+  '
 ```
 
 Request a quota increase via Azure Portal (Subscriptions → Usage + quotas → Request increase) or programmatically:
@@ -147,34 +168,34 @@ Both clusters use **Azure CNI Powered by Cilium** with an RFC 6598 overlay CIDR 
 ```
 azure-aks-multicluster/
 ├── network/                    # Layer 1: Network foundation
-│   ├── main.tf                 # Transit, spoke GWs, VNets, AppGWs, DB VM, DNS zone
+│   ├── main.tf                 # Transit, spoke GWs, VNets, AppGWs, DB VM, DNS zone (also pins providers)
+│   ├── dcf.tf                  # DCF SmartGroups, WebGroups, ruleset
+│   ├── dcf-k8s.tf              # K8s-typed SmartGroups + demo rule (gated by enable_k8s_smartgroup_demo)
 │   ├── variables.tf
 │   ├── outputs.tf              # VNet IDs, subnet IDs, AppGW IPs, NGINX LB IPs
-│   ├── versions.tf
 │   └── modules/
 │       ├── aks-vnet/           # VNet + subnet module (nodes, system, Aviatrix GW subnets)
 │       └── linux-vm/           # Linux test VM module (DB spoke)
 │
 ├── clusters/
 │   ├── frontend/               # Layer 2: Frontend AKS control plane
-│   │   ├── main.tf             # AKS cluster, managed identities, role assignments, OIDC
+│   │   ├── main.tf             # AKS cluster, managed identities, role assignments, OIDC, providers
+│   │   ├── onboarding.tf       # aviatrix_kubernetes_cluster registration
 │   │   ├── data.tf             # Read network state
 │   │   ├── variables.tf
-│   │   ├── outputs.tf
-│   │   └── versions.tf
+│   │   └── outputs.tf
 │   │
 │   └── backend/                # Layer 2: Backend AKS control plane (parallel)
 │
 ├── nodes/
-│   ├── frontend/               # Layer 3: Frontend node pool and Helm add-ons
-│   │   ├── main.tf             # Node pool configuration
+│   ├── frontend/               # Layer 3: Frontend Helm add-ons
+│   │   ├── main.tf             # Provider blocks (helm, kubernetes)
 │   │   ├── helm.tf             # NGINX Ingress, ExternalDNS, Aviatrix k8s-firewall
 │   │   ├── data.tf             # Read network + cluster state
 │   │   ├── variables.tf
-│   │   ├── outputs.tf
-│   │   └── versions.tf
+│   │   └── outputs.tf
 │   │
-│   └── backend/                # Layer 3: Backend node pool and Helm add-ons (parallel)
+│   └── backend/                # Layer 3: Backend Helm add-ons (parallel)
 │
 ├── k8s-apps/                   # Layer 4: Kubernetes application manifests (kubectl apply)
 │   ├── frontend/               # Gatus health dashboard — Frontend cluster
@@ -209,27 +230,51 @@ Each layer reads the previous layer's state via `data "terraform_remote_state" "
 ## Complete Deployment Guide
 
 > **Note:** Complete all items in the [Prerequisites](#prerequisites) section before proceeding.
+>
+> **Total deploy time:** ~50–70 minutes wall-clock when running same-level layers in parallel (network ~15-20m → clusters ~15m parallel → nodes ~10m parallel → kubectl/Gatus ~5m).
+
+### Step 0: Get the Source
+
+```bash
+# Clone the repository (or use your existing checkout)
+git clone https://github.com/AviatrixSystems/aviatrix-blueprints.git
+cd aviatrix-blueprints/blueprints/azure-aks-multicluster
+```
+
+All subsequent `cd` paths in this guide are relative to `blueprints/azure-aks-multicluster/`.
 
 ### Step 1: Set Environment Variables
 
 ```bash
-# Aviatrix Controller credentials
+# Aviatrix Controller credentials (always required)
 export AVIATRIX_CONTROLLER_IP="<controller-ip>"
 export AVIATRIX_USERNAME="<username>"
 export AVIATRIX_PASSWORD="<password>"
+```
 
-# Azure Service Principal credentials
+**Azure authentication** — pick one path:
+
+```bash
+# Option A: Service Principal (recommended for CI / non-interactive runs)
 export ARM_SUBSCRIPTION_ID="<subscription-id>"
 export ARM_TENANT_ID="<tenant-id>"
 export ARM_CLIENT_ID="<client-id>"
 export ARM_CLIENT_SECRET="<client-secret>"
 
-# Verify Azure access
+# Option B: Azure CLI user account (simplest for interactive lab use)
+az login
+az account set --subscription "<subscription-id>"
+
+# Verify access (works for both options)
 az account show
 ```
 
+> The AzureRM provider auto-detects whichever option is configured. Do not set both — `ARM_*` env vars take precedence over `az login` and the mismatch is a common source of confusion.
+
 > [!IMPORTANT]
-> When the cluster layers run with `enable_aviatrix_onboarding = true` (default), the Aviatrix Controller calls each AKS API server directly after fetching the kubeconfig from ARM. Set `aviatrix_controller_public_ip` in `clusters/*/terraform.tfvars` (typically the same as `AVIATRIX_CONTROLLER_IP`) so it's appended to `authorized_ip_ranges`. Without this, the controller will be blocked from the API server even though registration succeeds.
+> When the cluster layers run with `enable_aviatrix_onboarding = true` (default), the Aviatrix Controller calls each AKS API server directly after fetching the kubeconfig from ARM. The controller's public egress IP must clear the API server's `authorized_ip_ranges`:
+> - **If you set `authorized_ip_ranges = ["0.0.0.0/0"]`** (the example default): no extra config needed.
+> - **If you restrict `authorized_ip_ranges` to your own IP**: also set `aviatrix_controller_public_ip` in `clusters/*/terraform.tfvars` so the controller IP gets appended automatically. For SaaS / Cloud Fabric controllers this is the same value as `AVIATRIX_CONTROLLER_IP`; for self-hosted controllers behind NAT, use the controller's public egress IP (not its management IP).
 
 ### Step 2: Deploy Network Infrastructure
 
@@ -242,7 +287,7 @@ cd network/
 terraform init -upgrade
 
 # Create your variable file
-cp ../terraform.tfvars.example terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars — set at minimum:
 #   name_prefix                 (e.g., "aks-demo")
 #   aviatrix_azure_account_name (your Azure account name in Aviatrix Controller)
@@ -254,6 +299,9 @@ vim terraform.tfvars
 # AppGW provisioning takes ~7 minutes
 terraform apply
 ```
+
+> [!TIP]
+> If `terraform apply` fails partway through with a transient controller error like `connection reset by peer` or `502 Bad Gateway` on the Aviatrix Controller URL (most often during `aviatrix_spoke_transit_attachment`), simply re-run `terraform apply`. Terraform picks up where it left off and the controller normally accepts the retry. This is not a configuration bug.
 
 **What's created:**
 - Aviatrix Transit Gateway (transit VNet `10.2.0.0/20`, FireNet-enabled)
@@ -285,8 +333,10 @@ cp terraform.tfvars.example terraform.tfvars
 #   kubernetes_version            (default: 1.33)
 #   authorized_ip_ranges          (add your IP: run "curl -s ifconfig.me")
 #   enable_aviatrix_onboarding    (default: true — registers cluster with the Controller)
-#   aviatrix_controller_public_ip (set to ${AVIATRIX_CONTROLLER_IP} so the controller
-#                                  reaches the AKS API server)
+#   aviatrix_controller_public_ip (the public IP of your Aviatrix Controller —
+#                                  same value you used for AVIATRIX_CONTROLLER_IP
+#                                  in Step 1. Required only when authorized_ip_ranges
+#                                  is restrictive; skip if you used 0.0.0.0/0.)
 vim terraform.tfvars
 
 # Deploy cluster (~10-15 minutes)
@@ -342,7 +392,7 @@ terraform apply
 - ExternalDNS — creates Private DNS A records for annotated Services and Ingresses
 - Aviatrix k8s-firewall — installs `FirewallPolicy` and `WebgroupPolicy` CRDs
 
-After this step, the frontend AppGW backend probe will become **Healthy** within ~60 seconds.
+After this step the frontend NGINX is up at `10.10.0.200`, but the AppGW backend will still show **Unhealthy** until Gatus is deployed in Step 8 — without Gatus the NGINX has no Ingress matching `/health`, so the AppGW probe gets a 404. Healthy follows ~60 seconds after `kubectl apply -f k8s-apps/frontend/gatus.yaml`.
 
 ### Step 6: Deploy Backend Helm Add-ons (Parallel with Step 5)
 
@@ -361,6 +411,9 @@ terraform apply
 Steps 5 and 6 can run in parallel in separate terminals.
 
 ### Step 7: Configure kubectl for Both Clusters
+
+> [!NOTE]
+> The `--overwrite-existing` flag silently replaces any existing kubectl context named `frontend` or `backend`. If you have other clusters using those names, back up `~/.kube/config` first or use `--context` values that won't collide (e.g., `aks-demo-frontend`).
 
 ```bash
 # Frontend cluster
@@ -382,10 +435,11 @@ kubectl get nodes --context frontend
 kubectl get nodes --context backend
 ```
 
-**Expected output:**
+**Expected output** (one row per `node_count` in the cluster's `node_pool_config` — default is 2):
 ```
 NAME                             STATUS   ROLES    AGE   VERSION
-aks-system-35398034-vmss000001   Ready    <none>   10m   v1.32.x
+aks-system-35398034-vmss000000   Ready    <none>   10m   v1.33.x
+aks-system-35398034-vmss000001   Ready    <none>   10m   v1.33.x
 ```
 
 You can also retrieve the exact command from Terraform output:
@@ -403,13 +457,14 @@ kubectl get svc -n ingress-nginx --context backend
 # EXTERNAL-IP should be 10.20.0.200
 ```
 
-**Verify AppGW backend health:**
+**Verify AppGW backend health** — note this stays **Unhealthy** until Gatus is deployed in Step 8 (NGINX has no `/health` Ingress without Gatus, so the AppGW probe gets a 404). Re-run after Step 8 to see `Healthy`:
 ```bash
 az network application-gateway show-backend-health \
   --resource-group <name_prefix>-frontend-rg \
   --name <name_prefix>-frontend-appgw \
   --query "backendAddressPools[0].backendHttpSettingsCollection[0].servers[0].health" -o tsv
-# Expected: Healthy
+# Expected at this stage: Unhealthy
+# Expected after Step 8 (Gatus deployed): Healthy
 ```
 
 **Verify DCF CRDs are installed:**
@@ -483,13 +538,25 @@ Gatus on each cluster monitors the other cluster's service over port 8080. Verif
 - `http://db.azure.aviatrixdemo.local` (DB VM in DB spoke)
 - `http://frontend.azure.aviatrixdemo.local:8080` (Gatus in frontend cluster)
 
-You can also test manually:
+> **Two DNS names per cluster**: ExternalDNS publishes both `<cluster>.azure.aviatrixdemo.local` (the Service-direct internal LB at port 8080, used for cross-cluster east-west via Aviatrix transit) and `<cluster>-web.azure.aviatrixdemo.local` (the NGINX Ingress LB at port 80, used by the public AppGW path). The Service LB and the NGINX LB are both fronted by the same Azure `kubernetes-internal` Standard LB resource (one per cluster), so this does not double the LB cost.
+
+You can also test manually with a debug pod (kept alive for 5 min so you can run multiple commands against it):
 ```bash
-# From a debug pod in the frontend cluster, reach the backend service
-kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never \
-  --context frontend -- curl -s http://backend.azure.aviatrixdemo.local:8080/health
-# Expected: HTTP 200
+# Spawn a debug pod in the frontend cluster
+kubectl run debug --image=nicolaka/netshoot --restart=Never \
+  --context frontend --command -- sleep 300
+kubectl wait --for=condition=Ready pod/debug --context frontend --timeout=90s
+
+# Reach the backend cluster via Aviatrix transit (Service-direct LB, port 8080)
+kubectl exec debug --context frontend -- \
+  curl -s -o /dev/null -w "%{http_code}\n" http://backend.azure.aviatrixdemo.local:8080/health
+# Expected: 200
+
+# Cleanup
+kubectl delete pod debug --context frontend
 ```
+
+> **Use `--command -- sleep …`, not `-it --rm`**: an interactive `kubectl run -it --rm` blocks waiting for a TTY and stalls non-interactive shells (CI, automation). The pattern above is safe to copy-paste into any environment.
 
 ### Scenario 3: DCF Egress Policy — Allowed Domains
 
@@ -504,23 +571,19 @@ Gatus monitors several allowed egress endpoints. Verify these show green:
 Gatus monitors two threat endpoints that **should be blocked** by DCF. They appear as red/failed in the dashboard, which is the correct behavior:
 
 - `icmp://www.irna.ir` — GeoBlock (Iran)
-- `icmp://102.130.117.167` — ThreatGuard feed IP
+- `icmp://185.38.148.2` — ThreatGuard feed IP (same value used in `k8s-apps/{frontend,backend}/gatus.yaml`)
 
-> **Note:** The threat IP `102.130.117.167` must be present in your active Aviatrix ThreatGuard feed for blocking to work. If your feed differs, verify and update the IP in `k8s-apps/frontend/gatus.yaml` and `k8s-apps/backend/gatus.yaml`.
+> **Note:** The threat IP must be present in your active Aviatrix ThreatGuard feed for blocking to work. The feed (Emerging Threats Open compromised-ips) rotates roughly daily — if this scenario shows green/connected instead of red, the IP rolled out of the feed. Pull a current one from the live feed and update the IP in **both** `k8s-apps/frontend/gatus.yaml` and `k8s-apps/backend/gatus.yaml` (the `Threat Feed - Malicious IP` endpoint):
+> ```bash
+> curl -s https://rules.emergingthreats.net/blockrules/compromised-ips.txt | grep -vE '^(#|$)' | head -1
+> ```
 
 ### Scenario 5: K8s-Typed SmartGroup Membership
 
-Verify that the K8s-typed SmartGroups created in `network/dcf-k8s.tf` resolve membership from the cluster API once onboarding completes.
+The K8s-typed SmartGroups created in `network/dcf-k8s.tf` populate their members dynamically from the cluster API once onboarding succeeds. **CoPilot is the canonical place to verify this** — the Controller API only confirms cluster *registration*, not the resolved pod IPs.
 
 ```bash
-# In CoPilot:
-#   Cloud Workloads → Kubernetes Clusters
-#   Both clusters should show "Onboarded: Yes" with namespace and pod counts populated.
-#
-#   Security → SmartGroups → aks-demo-sg-frontend-gatus-ns
-#   Members tab should list the gatus pod IPs (100.64.x.x range, dynamically resolved).
-
-# From the Controller API (alternative):
+# Step 1 — Confirm both clusters are registered with the controller (use_csp_credentials=true).
 CID=$(curl -sk -X POST "https://${AVIATRIX_CONTROLLER_IP}/v1/api" \
   -d "action=login&username=${AVIATRIX_USERNAME}&password=${AVIATRIX_PASSWORD}" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['CID'])")
@@ -528,20 +591,34 @@ CID=$(curl -sk -X POST "https://${AVIATRIX_CONTROLLER_IP}/v1/api" \
 curl -sk -H "Authorization: cid ${CID}" \
   "https://${AVIATRIX_CONTROLLER_IP}/v2.5/api/k8s/clusters" \
   | python3 -m json.tool
-# Expected: both aks-demo-frontend and aks-demo-backend listed with use_csp_credentials=true
+# Expected: both aks-demo-frontend and aks-demo-backend listed with credential.use_csp_credentials=true.
+# Resolved pod IPs are NOT exposed by this endpoint — see CoPilot for membership.
+
+# Step 2 — Verify members in CoPilot (the only surface that exposes resolved pod IPs).
+#   Cloud Workloads → Kubernetes Clusters
+#     Both clusters should show "Onboarded: Yes" with namespace and pod counts populated.
+#     First-time sync after cluster onboarding can take up to ~10 minutes.
+#
+#   Security → SmartGroups → aks-demo-sg-frontend-gatus-ns → Members tab
+#     Should list the gatus pod IPs (100.64.x.x range, dynamically resolved).
 ```
 
-The priority-50 DCF rule ("Frontend Gatus to Backend Gatus k8s ns selector") references these SmartGroups. Once members populate, you can confirm enforcement in **CoPilot → Diagnostics → FlowIQ** by filtering for source/destination matching the gatus pod IPs.
+If both clusters are registered but CoPilot's SmartGroup Members tab is still empty after ~10 minutes, see [Troubleshooting → AKS Cluster Shows "Onboarded: No"](#aks-cluster-shows-onboarded-no-in-copilot).
+
+The priority-50 DCF rule ("Frontend Gatus to Backend Gatus k8s ns selector") references these SmartGroups. Once members populate, you can confirm enforcement in **CoPilot → Diagnostics → FlowIQ** by filtering for source/destination matching the gatus pod IPs. While membership is empty the rule is a no-op, but the lower-priority VNet-based rules (priority 14/15) still permit the cross-cluster gatus traffic — so dashboard checks remain green.
 
 ### Scenario 6: DCF CRD-Based Policies
 
 Apply example CRD policies to test Kubernetes-native policy management:
 
 ```bash
-# Apply the InfoSec namespace FirewallPolicy (allows VirusTotal access for pods labeled app=infosec)
+# Apply the InfoSec namespace FirewallPolicy (allows VirusTotal access for pods labeled app=infosec).
+# Lives in the existing `gatus` namespace, so no namespace creation needed.
 kubectl apply -f k8s-apps/dcf-crd/firewallpolicy-infosec.yaml --context frontend
 
-# Apply the Dev namespace WebGroupPolicy (allows broader package registry access for dev pods)
+# Apply the Dev namespace WebGroupPolicy (allows broader package registry access for dev pods).
+# Create the dev namespace first — it's not deployed by Terraform.
+kubectl create namespace dev --context frontend
 kubectl apply -f k8s-apps/dcf-crd/webgrouppolicy-dev.yaml --context frontend
 
 # Verify policies are accepted
@@ -551,13 +628,29 @@ kubectl get webgrouppolicies -n dev --context frontend
 
 ### Scenario 7: Private DNS Resolution
 
-ExternalDNS creates Private DNS records for Gatus Services and Ingresses. Verify DNS resolution works across clusters:
+ExternalDNS creates Private DNS records for Gatus Services and Ingresses. Each cluster registers two records (see "Two DNS names per cluster" note in Scenario 2):
+
+| FQDN | Resolves to | Behind | Used by |
+|------|-------------|--------|---------|
+| `frontend.azure.aviatrixdemo.local` | a frontend IP on `kubernetes-internal` LB (10.10.x.x) | Service `gatus/frontend` (port 8080) | Cross-cluster east-west, DCF hostname SmartGroup `frontend-service` |
+| `frontend-web.azure.aviatrixdemo.local` | NGINX LB (`10.10.0.200`) | Ingress `gatus/frontend-ingress` (port 80) | AppGW → NGINX → gatus public path |
+
+Verify DNS resolution works across clusters from inside a pod:
 
 ```bash
-# From a debug pod in the frontend cluster, resolve the backend DNS name
-kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never \
-  --context frontend -- nslookup backend.azure.aviatrixdemo.local
-# Expected: resolves to 10.20.x.x (backend NGINX LB IP)
+kubectl run debug --image=nicolaka/netshoot --restart=Never \
+  --context frontend --command -- sleep 300
+kubectl wait --for=condition=Ready pod/debug --context frontend --timeout=90s
+
+# Service-direct LB record (cross-cluster east-west)
+kubectl exec debug --context frontend -- nslookup backend.azure.aviatrixdemo.local
+# Expected: 10.20.x.x (backend Service-direct LB frontend IP)
+
+# Ingress record (NGINX LB used by AppGW)
+kubectl exec debug --context frontend -- nslookup backend-web.azure.aviatrixdemo.local
+# Expected: 10.20.0.200
+
+kubectl delete pod debug --context frontend
 
 # Verify ExternalDNS created the records
 az network private-dns record-set list \
@@ -676,7 +769,7 @@ Each AKS cluster is registered with the Aviatrix Controller via the `aviatrix_ku
 
 | Concern | EKS | AKS |
 |---|---|---|
-| Cluster auth model | IAM access entry → AAD-style RBAC | **Kubernetes RBAC with local accounts only.** Entra-ID-only auth is *not supported* — the kubeconfig from ARM contains `exec` entries the controller cannot process. |
+| Cluster auth model | IAM access entry mapped to in-cluster RBAC | **Kubernetes RBAC with local accounts only.** Entra-ID-only auth is *not supported* — the kubeconfig from ARM contains `exec` entries the controller cannot process. |
 | In-cluster RBAC | `view-nodes` ClusterRole + binding required | Not required — the kubeconfig from `listClusterUserCredential` is admin-equivalent. |
 | Per-cluster role assignment | EKS access entry + `AmazonEKSViewPolicy` | None per-cluster — subscription-scoped Contributor on the access account SP covers it. |
 
@@ -786,10 +879,10 @@ kubectl delete webgrouppolicies.networking.aviatrix.com --all -A --context backe
 sleep 60
 
 # Verify DNS records are cleaned up (only db.* should remain as a Terraform-managed record)
-az network private-dns record-set list \
+az network private-dns record-set a list \
   --resource-group <name_prefix>-shared-rg \
   --zone-name azure.aviatrixdemo.local \
-  --output table
+  --query "[].{name:name, ips:aRecords[].ipv4Address}" -o tsv
 ```
 
 If you skip the CR cleanup, the k8s-firewall Helm release will be torn down before its controller can finalize its CRs. The controller-side SmartGroups + policy lists become orphans that block the cluster destroy in step 4 with `[AVXERR-SMARTGROUP-0003] ... present in one or more dfw policies`. The recovery procedure (after the fact) is at the end of this section.
@@ -815,6 +908,39 @@ cd network/
 # priority-50 rule from the DCF ruleset. ~10s.
 terraform apply -auto-approve -var enable_k8s_smartgroup_demo=false
 ```
+
+> [!IMPORTANT]
+> **This step often fails the first time** with `[AVXERR-SMARTGROUP-0003] Smart Group ... present in one or more dfw policies`. The `depends_on` in `dcf.tf` is supposed to remove the priority-50 rule from the policy list before the SG delete, but eventual-consistency on the controller (verified on 9.0.10) drops the dependency edge through the `dynamic "rules"` block — Terraform attempts the SG delete in parallel with the rule removal. The recovery is mechanical and you'll be done in ~30 seconds:
+>
+> ```bash
+> # Set this to your name_prefix value from network/terraform.tfvars (the example uses "aks-demo").
+> # The DCF policy list this blueprint creates is named "<name_prefix>-aks-multicluster".
+> NAME_PREFIX=aks-demo
+>
+> # Find the policy list UUID for our ruleset and the priority-50 rule's parent.
+> CID=$(curl -sk -X POST "https://${AVIATRIX_CONTROLLER_IP}/v1/api" \
+>   -d "action=login&username=${AVIATRIX_USERNAME}&password=${AVIATRIX_PASSWORD}" \
+>   | python3 -c "import sys,json; print(json.load(sys.stdin)['CID'])")
+>
+> # Build a pruned copy of the policy list (priority-50 removed) and PUT it back.
+> curl -sk -H "Authorization: cid ${CID}" \
+>   "https://${AVIATRIX_CONTROLLER_IP}/v2.5/api/microseg/policy-list3" \
+>   | NAME_PREFIX="$NAME_PREFIX" python3 -c "
+> import sys, json, os
+> target = os.environ['NAME_PREFIX'] + '-aks-multicluster'
+> d = json.load(sys.stdin)
+> for pl in d.get('dcf_policies', []):
+>     if pl.get('name') == target:
+>         pl['policies'] = [p for p in pl.get('policies', []) if p.get('priority') != 50]
+>         print(json.dumps(pl)); break" > /tmp/aks-prune.json
+> LIST_UUID=$(python3 -c "import json; print(json.load(open('/tmp/aks-prune.json'))['uuid'])")
+> curl -sk -X PUT -H "Authorization: cid ${CID}" -H "Content-Type: application/json" \
+>   --data-binary @/tmp/aks-prune.json \
+>   "https://${AVIATRIX_CONTROLLER_IP}/v2.5/api/microseg/policy-list3/${LIST_UUID}"
+>
+> # Then re-run the apply — Terraform will reconcile state and complete the SG destroys.
+> terraform apply -auto-approve -var enable_k8s_smartgroup_demo=false
+> ```
 
 ### Step 4: Destroy AKS Clusters (Parallel)
 
