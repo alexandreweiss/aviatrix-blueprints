@@ -43,7 +43,6 @@ locals {
   name_prefix   = data.terraform_remote_state.network.outputs.name_prefix
 }
 
-# NOTE: AKS Azure CNI Powered by Cilium does not expose a cilium-config ConfigMap.
-# Pod masquerade is controlled by azure-ip-masq-agent, which already lists
-# 100.64.0.0/16 (pod CIDR) in NonMasqueradeCIDRs. DCF rules operate at VNet level
-# (post-SNAT to spoke GW IP). Pod-level DCF requires the Aviatrix K8s controller.
+# See nodes/frontend/main.tf — pod-subnet mode means AKS doesn't deploy the
+# azure-ip-masq-agent daemonset; no cluster-boundary masquerade override is
+# needed. Pod IPs are preserved end-to-end up to the Aviatrix spoke gateway.

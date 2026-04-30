@@ -96,6 +96,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     max_count            = var.node_pool_config.max_count
     auto_scaling_enabled = true
     vnet_subnet_id       = data.terraform_remote_state.network.outputs.backend_nodes_subnet_id
+    pod_subnet_id        = data.terraform_remote_state.network.outputs.backend_pod_subnet_id
+    max_pods             = 250
 
     upgrade_settings {
       max_surge = "10%"
@@ -108,13 +110,11 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   network_profile {
-    network_plugin      = "azure"
-    network_plugin_mode = "overlay"
-    network_policy      = "cilium" # Activates Azure CNI Powered by Cilium (replaces kube-proxy with eBPF)
-    network_data_plane  = "cilium" # Required by AKS API alongside network_policy=cilium
+    network_plugin     = "azure"
+    network_policy     = "cilium"
+    network_data_plane = "cilium"
 
-    pod_cidr = data.terraform_remote_state.network.outputs.pod_cidr
-
+    # See clusters/frontend/main.tf for full rationale on pod-subnet mode (no overlay).
     service_cidr   = data.terraform_remote_state.network.outputs.service_cidr
     dns_service_ip = data.terraform_remote_state.network.outputs.dns_service_ip
 
