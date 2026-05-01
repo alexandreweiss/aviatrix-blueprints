@@ -9,19 +9,22 @@ variable "name_prefix" {
 # these empty in tfvars and export AVIATRIX_CONTROLLER_IP / AVIATRIX_USERNAME /
 # AVIATRIX_PASSWORD env vars instead.
 variable "aviatrix_controller_ip" {
-  type    = string
-  default = null
+  description = "Aviatrix Controller IP/hostname. Leave null and export AVIATRIX_CONTROLLER_IP instead."
+  type        = string
+  default     = null
 }
 
 variable "aviatrix_username" {
-  type    = string
-  default = null
+  description = "Aviatrix Controller username. Leave null and export AVIATRIX_USERNAME instead."
+  type        = string
+  default     = null
 }
 
 variable "aviatrix_password" {
-  type      = string
-  sensitive = true
-  default   = null
+  description = "Aviatrix Controller password. Leave null and export AVIATRIX_PASSWORD instead."
+  type        = string
+  sensitive   = true
+  default     = null
 }
 
 variable "aviatrix_gcp_account_name" {
@@ -50,6 +53,17 @@ variable "transit_cidr" {
   description = "CIDR for the Aviatrix Transit VPC"
   type        = string
   default     = "10.2.0.0/24"
+}
+
+variable "gw_instance_size" {
+  description = <<-EOT
+    GCE machine type for the Aviatrix transit + spoke gateways. Default
+    n1-standard-1 (~1 Gbps) is sized for lab demos. Step up to n1-standard-4 or
+    higher for bandwidth-heavy workloads. Same size is applied to all four GWs
+    (transit + frontend + backend + db spokes).
+  EOT
+  type        = string
+  default     = "n1-standard-1"
 }
 
 variable "frontend_vpc_cidr" {

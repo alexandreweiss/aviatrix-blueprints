@@ -1,5 +1,6 @@
 output "cluster_name" {
-  value = google_container_cluster.this.name
+  description = "Name of the GKE cluster (matches network layer's backend_cluster_name)."
+  value       = google_container_cluster.this.name
 }
 
 output "cluster_self_link" {
@@ -19,7 +20,8 @@ output "cluster_ca_certificate" {
 }
 
 output "node_service_account_email" {
-  value = google_service_account.node.email
+  description = "GSA email used by the GKE node pool (least-privilege; consumed by IAM bindings in this layer)."
+  value       = google_service_account.node.email
 }
 
 output "external_dns_service_account_email" {
@@ -28,5 +30,6 @@ output "external_dns_service_account_email" {
 }
 
 output "workload_identity_pool" {
-  value = "${data.terraform_remote_state.network.outputs.gcp_project_id}.svc.id.goog"
+  description = "Workload Identity pool for the project (<project-id>.svc.id.goog); used by KSA→GSA bindings in nodes/backend."
+  value       = "${data.terraform_remote_state.network.outputs.gcp_project_id}.svc.id.goog"
 }

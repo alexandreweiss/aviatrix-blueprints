@@ -1,18 +1,3 @@
-terraform {
-  required_version = ">= 1.5"
-
-  required_providers {
-    aviatrix = {
-      source  = "AviatrixSystems/aviatrix"
-      version = "~> 8.2"
-    }
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 6.0"
-    }
-  }
-}
-
 provider "aviatrix" {
   controller_ip           = var.aviatrix_controller_ip
   username                = var.aviatrix_username
@@ -99,8 +84,7 @@ module "gcp_transit" {
   cidr    = var.transit_cidr
   ha_gw   = false
 
-  # Lab sizing — N1 standard 1 is supported for GCP transit GW.
-  instance_size = "n1-standard-1"
+  instance_size = var.gw_instance_size
 
   # Non-overlapping pod CIDRs: frontend uses 100.64.0.0/17, backend
   # 100.64.128.0/17. Both are non-RFC1918 CGNAT space; we exclude the parent
@@ -141,21 +125,56 @@ module "frontend_spoke" {
   az1        = local.gcp_az
   transit_gw = module.gcp_transit.transit_gateway.gw_name
 
-  instance_size = "n1-standard-1"
+  instance_size = var.gw_instance_size
   ha_gw         = false
 
   # Bring the existing GCP VPC created by gke-vpc.
   use_existing_vpc = true
   vpc_id           = module.frontend_vpc.aviatrix_vpc_id
   gw_subnet        = module.frontend_vpc.avx_gw_subnet_cidr
+}
 
-  # Primary-mode SNAT — required on GCP for spoke egress to internet AND
-  # for the controller to auto-program 0.0.0.0/0 → spoke GW (priority 991)
-  # in the VPC route table. Per Aviatrix 9.0.10 codebase, customized_snat
-  # withdraws the 991 route by design and the priority-500 avx-gws-igw-rt
-  # short-circuits forwarded pod traffic past iptables, so customized_snat
-  # is not a workable substitute on GCP. AWS/Azure variants don't hit this.
-  single_ip_snat = true
+# Customized SNAT mirrors aws-eks-multicluster — pod CIDR (transit + eth0)
+# plus node subnet (eth0). On GCP this hits a controller bug:
+# validate_dst_cidr rejects pod-CIDR src because gw_obj.vpc_cidr does not
+# enumerate subnet secondaryIpRanges, so the 991 route → spoke-GW is never
+# programmed. Workaround: program the route manually via gcloud (untagged,
+# priority 991). Tracked in AVX bug ticket; see GCP_GKE_MULTICLUSTER_SNAT_GAP.md.
+resource "aviatrix_gateway_snat" "frontend_spoke_snat" {
+  gw_name   = module.frontend_spoke.spoke_gateway.gw_name
+  snat_mode = "customized_snat"
+
+  # Pod CIDR → all destinations via transit
+  snat_policy {
+    src_cidr   = var.frontend_pods_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = ""
+    connection = module.gcp_transit.transit_gateway.gw_name
+    snat_ips   = module.frontend_spoke.spoke_gateway.private_ip
+  }
+
+  # Pod CIDR → internet via eth0
+  snat_policy {
+    src_cidr   = var.frontend_pods_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = module.frontend_spoke.spoke_gateway.private_ip
+  }
+
+  # GKE node subnet → internet via eth0
+  snat_policy {
+    src_cidr   = var.frontend_nodes_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = module.frontend_spoke.spoke_gateway.private_ip
+  }
+
+  depends_on = [module.frontend_spoke]
 }
 
 #####################
@@ -190,14 +209,46 @@ module "backend_spoke" {
   az1        = local.gcp_az
   transit_gw = module.gcp_transit.transit_gateway.gw_name
 
-  instance_size = "n1-standard-1"
+  instance_size = var.gw_instance_size
   ha_gw         = false
 
   use_existing_vpc = true
   vpc_id           = module.backend_vpc.aviatrix_vpc_id
   gw_subnet        = module.backend_vpc.avx_gw_subnet_cidr
+}
 
-  single_ip_snat = true
+resource "aviatrix_gateway_snat" "backend_spoke_snat" {
+  gw_name   = module.backend_spoke.spoke_gateway.gw_name
+  snat_mode = "customized_snat"
+
+  snat_policy {
+    src_cidr   = var.backend_pods_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = ""
+    connection = module.gcp_transit.transit_gateway.gw_name
+    snat_ips   = module.backend_spoke.spoke_gateway.private_ip
+  }
+
+  snat_policy {
+    src_cidr   = var.backend_pods_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = module.backend_spoke.spoke_gateway.private_ip
+  }
+
+  snat_policy {
+    src_cidr   = var.backend_nodes_cidr
+    dst_cidr   = "0.0.0.0/0"
+    protocol   = "all"
+    interface  = "eth0"
+    connection = ""
+    snat_ips   = module.backend_spoke.spoke_gateway.private_ip
+  }
+
+  depends_on = [module.backend_spoke]
 }
 
 #####################
@@ -253,7 +304,7 @@ module "db_spoke" {
   az1        = local.gcp_az
   transit_gw = module.gcp_transit.transit_gateway.gw_name
 
-  instance_size = "n1-standard-1"
+  instance_size = var.gw_instance_size
   ha_gw         = false
 
   use_existing_vpc = true
