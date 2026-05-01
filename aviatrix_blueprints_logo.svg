@@ -59,7 +59,7 @@
 
   <!-- Sheet header strip -->
   <line x1="80" y1="74" x2="1320" y2="74" stroke="#2A4A8A" stroke-width="0.6"/>
-  <text x="80" y="64" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#7AB8FF" letter-spacing="3">SHEET 01 / 01  ·  AVIATRIX SYSTEMS  ·  CLOUD NETWORK SECURITY</text>
+  <text x="80" y="64" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#7AB8FF" letter-spacing="3">SHEET 01 / 01  ·  AVIATRIX SYSTEMS  ·  CLOUD NATIVE SECURITY FABRIC</text>
   <text x="1320" y="64" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#7AB8FF" letter-spacing="3" text-anchor="end">PROJ. AVX-BP  ·  REF QUALITY LAB ENVIRONMENTS</text>
 
   <!--
@@ -134,7 +134,7 @@
   <text x="540" y="475" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="130" font-weight="800" letter-spacing="-3" fill="#F5F8FF">BLUEPRINTS</text>
 
   <line x1="540" y1="505" x2="1320" y2="505" stroke="#2A4A8A" stroke-width="0.6"/>
-  <text x="540" y="532" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="14" fill="#A0B4D8" letter-spacing="4">REFERENCE-QUALITY  ·  CLOUD NETWORK SECURITY  ·  LAB ENVIRONMENTS</text>
+  <text x="540" y="532" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="14" fill="#A0B4D8" letter-spacing="4">REFERENCE-QUALITY  ·  CLOUD NATIVE SECURITY FABRIC  ·  LAB ENVIRONMENTS</text>
 
   <!-- ============= Bottom-left: Notes ============= -->
   <g transform="translate(80, 600)">

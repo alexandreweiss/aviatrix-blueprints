@@ -1,6 +1,6 @@
-# Multi-Cluster GKE with Aviatrix Transit Architecture
+# Multi-Cluster GKE Secured by the Aviatrix Cloud Native Security Fabric
 
-This blueprint deploys a multi-cluster Kubernetes environment on Google Cloud with Aviatrix transit networking, demonstrating Distributed Cloud Firewall (DCF) for Kubernetes — the GCP counterpart to `aws-eks-multicluster` and `azure-aks-multicluster`.
+This blueprint deploys a multi-cluster Kubernetes environment on Google Cloud, demonstrating the **Aviatrix Cloud Native Security Fabric (CNSF)** for Kubernetes — Distributed Cloud Firewall (DCF), workload segmentation, and Zero Trust enforcement across clusters. GCP counterpart to `aws-eks-multicluster` and `azure-aks-multicluster`.
 
 > [!TIP]
 > **Optimized for Claude Code** — Run `/deploy-blueprint` for AI-guided deployment with prerequisite checks and automated orchestration, or `/analyze-blueprint` for resource and cost details. [Get Claude Code](https://claude.ai/code)
