@@ -1,6 +1,6 @@
 # Aviatrix Blueprints
 
-Production-ready Terraform lab environments for learning, demonstrating, and testing Aviatrix cloud networking solutions.
+Production-ready Terraform lab environments — Infrastructure as Code for learning, demonstrating, and testing the **Aviatrix Cloud Native Security Fabric**: Distributed Cloud Firewall, workload segmentation, and Zero Trust enforcement across AWS, Azure, and GCP.
 
 ![Aviatrix Blueprints](aviatrix_blueprints_logo.svg)
 
