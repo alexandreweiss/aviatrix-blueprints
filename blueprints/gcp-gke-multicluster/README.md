@@ -19,7 +19,7 @@ Before deploying this infrastructure, ensure you have the following prerequisite
 |-----------|-------------|-------|
 | **Aviatrix Controller** | 9.0.10 or newer | Default-route propagation into the spoke VPC requires Controller 9.0. K8s SmartGroup membership requires CoPilot 9.0+. |
 | **Aviatrix CoPilot** | Recommended | Required for DCF visualization, SmartGroup browsing, K8s cluster pod-IP membership, and FlowIQ flow inspection. |
-| **Aviatrix GCP access account** | Onboarded in Controller | Default name in this blueprint: `Google`. The service account JSON loaded into the Controller needs at minimum `roles/compute.networkAdmin` (VPC + spoke gateway management) and `roles/container.clusterViewer` (GKE onboarding via `aviatrix_kubernetes_cluster`). The built-in `Kubernetes Engine Admin` role is the simplest one-stop. |
+| **Aviatrix GCP access account** | Onboarded in Controller | Default name in this blueprint: `Google`. The service account JSON loaded into the Controller needs `roles/compute.networkAdmin` (VPC + spoke gateway management) **plus** `roles/container.admin` or `roles/container.clusterAdmin` (GKE onboarding **and** the watch loop that reconciles DCF CRs into Controller-side SmartGroups — both need `container.clusters.getCredentials`). `roles/container.clusterViewer` alone is **not** sufficient: it satisfies onboarding but the watch loop silently fails to reconcile, so `FirewallPolicy`/`WebGroupPolicy` CRs you apply in Step 8 won't appear in CoPilot. See [Troubleshooting › GKE Cluster Shows "Onboarded: No"](#gke-cluster-shows-onboarded-no-in-copilot-or-dcf-crs-arent-reconciled) if symptoms appear. |
 
 ### Local Tools
 
@@ -69,9 +69,10 @@ This blueprint deploys 4 Aviatrix gateways, 4 GKE nodes, and 1 Apache test VM in
 
 Check current usage:
 ```bash
-gcloud compute project-info describe \
+gcloud compute regions describe us-central1 \
   --project=<YOUR_PROJECT_ID> \
-  --format="json(quotas[?metric=='CPUS' || metric=='IN_USE_ADDRESSES'])"
+  --format="value(quotas.metric,quotas.usage,quotas.limit)" \
+  | tr ';' '\n' | paste -d'|' - - - | grep -E "^(CPUS|IN_USE_ADDRESSES)\b"
 ```
 
 If you need an increase, file the request via Console → IAM & Admin → Quotas. Up to ~50 vCPUs is generally auto-approved.
@@ -412,9 +413,9 @@ gke-gke-demo-frontend-primary-8ead9b6a-hb76   Ready    <none>   12m   v1.33.x-gk
 gke-gke-demo-frontend-primary-8ead9b6a-nnc9   Ready    <none>   12m   v1.33.x-gke.xxx
 ```
 
-#### Optional: Rename kubectl Contexts
+#### Rename kubectl Contexts
 
-The auto-generated names get unwieldy. Shorten them:
+The auto-generated names get unwieldy, and **the rest of this guide assumes the short aliases below.** Step 8 and every Test Scenario use `--context=frontend` / `--context=backend`; without the rename, those commands fail with `context not found`. Shorten:
 
 ```bash
 PROJECT=$(gcloud config get project)
@@ -470,15 +471,23 @@ kubectl --context=frontend get gateway -n gatus -w
 
 #### Get the Public ALB IPs
 
-The ALB IPs are the reserved global addresses created in the `network/` layer:
+> [!IMPORTANT]
+> Always read the ALB IP from the live Gateway, **not** from the `network/` Terraform output. The `network/` layer pre-reserves global addresses and the Gatus manifest annotates them via `networking.gke.io/addresses`, but on some current GKE versions the `gke-l7-global-external-managed` controller does **not** honor short-name annotations and mints a fresh address instead — leaving the reserved IPs in `STATUS=RESERVED` (unused) while Gatus serves on a different IP. Reading from `kubectl get gateway` always returns the live address regardless of which path is in effect.
 
 ```bash
-cd network/
-terraform output frontend_gateway_global_ip_address
-terraform output backend_gateway_global_ip_address
+FRONTEND_IP=$(kubectl --context=frontend get gateway frontend-public -n gatus \
+  -o jsonpath='{.status.addresses[0].value}')
+BACKEND_IP=$(kubectl --context=backend  get gateway backend-public  -n gatus \
+  -o jsonpath='{.status.addresses[0].value}')
+echo "Frontend ALB: $FRONTEND_IP"
+echo "Backend  ALB: $BACKEND_IP"
+
+# Optional: verify whether the reserved IP got bound (success path = STATUS=IN_USE)
+gcloud compute addresses list --global --filter="name~gke-demo" \
+  --format="table(name,address,status)"
 ```
 
-Open `http://<frontend-ip>/` and `http://<backend-ip>/` in a browser. Each shows a Gatus dashboard.
+Open `http://$FRONTEND_IP/` and `http://$BACKEND_IP/` in a browser. Each shows a Gatus dashboard.
 
 ---
 
@@ -489,8 +498,12 @@ Open `http://<frontend-ip>/` and `http://<backend-ip>/` in a browser. Each shows
 Verify the path GFE → Global External ALB → container-native NEG → Gatus pod is working end-to-end.
 
 ```bash
-FRONTEND_IP=$(cd network/ && terraform output -raw frontend_gateway_global_ip_address)
-BACKEND_IP=$(cd network/ && terraform output -raw backend_gateway_global_ip_address)
+# Read the live ALB IP from the Gateway resource — the network/ tf output returns the
+# *reserved* global IP, which the GKE Gateway controller may or may not have bound to.
+FRONTEND_IP=$(kubectl --context=frontend get gateway frontend-public -n gatus \
+  -o jsonpath='{.status.addresses[0].value}')
+BACKEND_IP=$(kubectl --context=backend  get gateway backend-public  -n gatus \
+  -o jsonpath='{.status.addresses[0].value}')
 
 curl -s -o /dev/null -w "%{http_code}\n" http://$FRONTEND_IP/
 # Expected: 200
@@ -1092,9 +1105,13 @@ The GKE Gateway controller takes 3-5 minutes to provision the Global External AL
    ```
    Status `RESERVED` is normal until the Gateway claims it (becomes `IN_USE`).
 
-3. **Check the GKE Gateway controller logs:**
+3. **Check Gateway events + GKE control-plane audit logs.** The `gke-l7-global-external-managed` controller is **GKE-managed** (runs outside your cluster) — there is no in-cluster pod or `gke-system` deployment to log against. Use:
    ```bash
-   kubectl --context=frontend logs -n gke-system deployment/gke-l7-global-external-managed -c gke-l7
+   kubectl --context=frontend get events -n gatus \
+     --field-selector involvedObject.kind=Gateway,involvedObject.name=frontend-public \
+     --sort-by=.lastTimestamp
+   gcloud logging read 'resource.type="gke_cluster" AND severity>=ERROR' \
+     --project=<PROJECT> --limit=50 --format="value(timestamp,textPayload)"
    ```
 
 ### ExternalDNS Not Creating DNS Records

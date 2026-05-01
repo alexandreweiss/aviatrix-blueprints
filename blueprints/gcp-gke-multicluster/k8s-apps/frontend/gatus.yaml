@@ -74,7 +74,7 @@ data:
       #   curl -s https://rules.emergingthreats.net/blockrules/compromised-ips.txt | grep -vE '^(#|$)' | head -1
       - name: "Threat Feed - Malicious IP"
         group: "Threats"
-        url: "icmp://185.38.148.2"
+        url: "icmp://100.19.147.208"
         interval: 60s
         conditions: ["[CONNECTED] == true"]
 
