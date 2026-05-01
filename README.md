@@ -2,7 +2,7 @@
 
 Production-ready Terraform lab environments for learning, demonstrating, and testing Aviatrix cloud networking solutions.
 
-![Aviatrix Blueprints](aviatrix_blueprints_logo.png)
+![Aviatrix Blueprints](aviatrix_blueprints_logo.svg)
 
 > [!TIP]
 > **🤖 Aviatrix Blueprints are Optimized for Claude Code**
@@ -51,7 +51,7 @@ Blueprints are **complete, deployable lab environments** that demonstrate Aviatr
 
 | Blueprint | Description | Cloud(s) | Tier | Status |
 |-----------|-------------|----------|------|--------|
-| [aws-eks-multicluster](blueprints/aws-eks-multicluster/) | Multi-cluster EKS with Aviatrix transit and Distributed Cloud Firewall | AWS | Community | ✅ Available |
+| [aws-eks-multicluster](blueprints/aws-eks-multicluster/) | Multi-cluster EKS with Aviatrix transit and Distributed Cloud Firewall | AWS | Verified | ✅ Available |
 | [azure-aks-multicluster](blueprints/azure-aks-multicluster/) | Multi-cluster AKS with Aviatrix transit and DCF (Cilium overlay, AppGW + NGINX two-tier ingress) | Azure | Community | ✅ Available |
 | [prevent-lateral-movement-vm-tags](blueprints/prevent-lateral-movement-vm-tags/) | Zero Trust segmentation using DCF and VM tags to prevent lateral movement | AWS | Community | ✅ Available |
 | [zero-trust-segmentation](blueprints/zero-trust-segmentation/) | Zero Trust workload segmentation with DCF SmartGroups | AWS | Community | ✅ Available |
