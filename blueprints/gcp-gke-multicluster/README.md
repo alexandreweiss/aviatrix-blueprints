@@ -71,8 +71,9 @@ Check current usage:
 ```bash
 gcloud compute regions describe us-central1 \
   --project=<YOUR_PROJECT_ID> \
-  --format="value(quotas.metric,quotas.usage,quotas.limit)" \
-  | tr ';' '\n' | paste -d'|' - - - | grep -E "^(CPUS|IN_USE_ADDRESSES)\b"
+  --flatten="quotas[]" \
+  --format="table(quotas.metric,quotas.usage,quotas.limit)" \
+  | grep -E "^(CPUS|IN_USE_ADDRESSES)\b"
 ```
 
 If you need an increase, file the request via Console → IAM & Admin → Quotas. Up to ~50 vCPUs is generally auto-approved.
@@ -291,7 +292,10 @@ terraform apply
 ```
 
 > [!TIP]
-> If `terraform apply` fails partway through with a transient controller error like `connection reset by peer` or `502 Bad Gateway` (most often during `aviatrix_spoke_transit_attachment` or `aviatrix_gateway_snat`), simply re-run `terraform apply`. Terraform picks up where it left off and the controller normally accepts the retry. This is not a configuration bug.
+> If `terraform apply` fails partway through with a transient error, simply re-run `terraform apply`. Terraform picks up where it left off and the retry normally succeeds. This is not a configuration bug. Common transients on this blueprint:
+>
+> - **Aviatrix Controller** — `connection reset by peer` / `502 Bad Gateway` (most often during `aviatrix_spoke_transit_attachment` or `aviatrix_gateway_snat`).
+> - **GCP** — `Error waiting for instance to create: Internal error.` on `module.db_vm.google_compute_instance.this`.
 
 **What's created:**
 
@@ -326,6 +330,9 @@ vim terraform.tfvars   # only needed if you customized any of the above
 # Deploy cluster (~10-15 minutes)
 terraform apply
 ```
+
+> [!TIP]
+> GKE control-plane creation occasionally fails fast (~30-60s) with `Error waiting for creating GKE cluster: Failed to create cluster` (a generic GCP `INTERNAL` error). The cluster is left in `STATUS=ERROR`; re-run `terraform apply` and Terraform will plan a destroy of the ERROR cluster and recreate it — the retry typically succeeds. No manual `gcloud container clusters delete` is required. Same advice applies to Step 4.
 
 **What's created:**
 
@@ -1183,7 +1190,7 @@ After `clusters/*` and `nodes/*` apply succeed and you've applied DCF CRs from `
 
 4. **Confirm the watch loop is actually reconciling.** The fastest way is to look for CR-injected SmartGroups + system-list rules:
    ```bash
-   echo "=== CR-injected SmartGroups (should appear within ~60s of CR apply) ==="
+   echo "=== CR-injected SmartGroups (subsequent CR applies on an already-onboarded cluster reconcile within ~60s; the first reconcile after a fresh onboarding can take up to ~10-15 minutes) ==="
    curl -sk -H "Authorization: cid ${CID}" "https://${AVIATRIX_CONTROLLER_IP}/v2.5/api/app-domains" \
      | python3 -c "
    import sys, json
@@ -1218,7 +1225,9 @@ After `clusters/*` and `nodes/*` apply succeed and you've applied DCF CRs from `
    terraform taint 'aviatrix_kubernetes_cluster.this[0]'
    terraform apply
    ```
-   The taint causes Terraform to delete and re-create the registration, which re-triggers the controller's onboarding handshake. Wait ~60s after apply for the watch loop to spin up, then re-check step 4. **Note:** if there are already CR-injected SmartGroups present, the destroy half of the taint will fail with `cluster is still used in smart groups` — that's expected; it confirms the watch loop IS working. In that case the registration was healthy all along; check CoPilot UI directly.
+   The taint causes Terraform to delete and re-create the registration, which re-triggers the controller's onboarding handshake. Wait ~60s after apply for the watch loop to spin up, then re-check step 4.
+
+   **Note:** if the destroy half of the taint fails with `cluster is still used in smart groups: <name1>, <name2>, ...`, inspect the names. If any start with `firewallpolicysource-` or `webgrouppolicy-target-`, the watch loop IS reconciling CRs — registration is healthy, check CoPilot UI for member resolution. If only template-level SGs (e.g. `${name_prefix}-sg-*-cluster`, `${name_prefix}-sg-*-gatus-ns`) appear, the test is **inconclusive** — those are created by `network/dcf-k8s.tf` (when `enable_k8s_smartgroup_demo = true`), not by the watch loop. In that case, set `enable_k8s_smartgroup_demo = false` on `network/`, apply, then retry the taint to isolate watch-loop behavior.
 
 5. **Check CoPilot directly.** The controller API only confirms registration; CoPilot is the only surface that exposes resolved pod-IP membership for K8s-typed SmartGroups. Cloud Workloads → Kubernetes Clusters should show **Onboarded: Yes** with namespace and pod counts. First-time sync after onboarding can take up to ~10 minutes.
 
