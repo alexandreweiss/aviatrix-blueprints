@@ -343,7 +343,7 @@ terraform apply
 - Aviatrix Transit Gateway (transit VNet `10.2.0.0/20`)
 - Frontend AKS VNet — **two address spaces**: routable `10.10.0.0/23` (nodes, system, AppGW, Aviatrix spoke GW subnets) + pod `100.64.0.0/16` (pod subnet); UDR `0.0.0.0/0 → spoke GW` on the nodes/system/pod subnets; spoke GW in `customized_snat` mode
 - Backend AKS VNet — same shape with `10.20.0.0/23` routable + `100.64.0.0/16` pod (intentionally same pod CIDR as frontend; never advertised to transit)
-- DB spoke VNet (`10.5.0.0/22`) with Linux test VM (Apache)
+- DB spoke VNet (`10.5.0.0/22`) with Linux test VM (nginx)
 - Frontend Application Gateway (Standard_v2, public IP, backend pool targets `10.10.0.200`)
 - Backend Application Gateway (Standard_v2, public IP, backend pool targets `10.20.0.200`)
 - Azure Private DNS zone (`azure.aviatrixdemo.local`) linked to all VNets
@@ -600,6 +600,7 @@ Gatus monitors several allowed egress endpoints. Verify these show green:
 
 - `https://kubernetes.io` (kubernetes_io WebGroup)
 - `https://github.com/AviatrixSystems/terraform-provider-aviatrix` (github_aviatrix WebGroup)
+- `https://github.com/AviatrixSystems/avxlabs-docs` (github_aviatrix WebGroup)
 - `https://registry.npmjs.org` (npm_registry WebGroup)
 
 ### Scenario 4: DCF Threat Blocking — GeoBlock and ThreatIQ
@@ -1286,7 +1287,7 @@ ls -la clusters/frontend/terraform.tfstate
 | Frontend Node Pool | Azure VMSS | 2 (desired) | Standard_B2s | min=1, max=3 |
 | Backend Node Pool | Azure VMSS | 2 (desired) | Standard_B2s | min=1, max=3 |
 | **Test VM** | | | | |
-| DB Linux VM | Azure VM | 1 | Standard_B1s | DB spoke, Apache |
+| DB Linux VM | Azure VM | 1 | Standard_B1s | DB spoke, nginx |
 
 **Total VMs (at desired state):** 10
 
