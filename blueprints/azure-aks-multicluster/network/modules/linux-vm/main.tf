@@ -48,14 +48,16 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version   = "latest"
   }
 
-  # Install nginx web server on boot — used as east-west test target
+  # Install nginx web server on boot — used as east-west test target.
+  # The Aviatrix spoke GW SNAT may not be ready when cloud-init first runs,
+  # so DNS / apt egress can fail for several minutes. Retry until they work.
   custom_data = base64encode(<<-EOF
     #!/bin/bash
-    apt-get update -y
-    apt-get install -y nginx
+    until getent hosts archive.ubuntu.com >/dev/null; do sleep 30; done
+    until apt-get update -y; do sleep 15; done
+    until apt-get install -y nginx; do sleep 15; done
     systemctl enable nginx
     systemctl start nginx
-    # Return hostname in response body for easy identification
     echo "<h1>DB Test VM: $(hostname)</h1><p>Private IP: $(hostname -I | awk '{print $1}')</p>" \
       > /var/www/html/index.html
   EOF
