@@ -52,7 +52,7 @@ Blueprints are **complete, deployable lab environments** that demonstrate Aviatr
 | Blueprint | Description | Cloud(s) | Tier | Status |
 |-----------|-------------|----------|------|--------|
 | [aws-eks-multicluster](blueprints/aws-eks-multicluster/) | Multi-cluster EKS with Aviatrix transit and Distributed Cloud Firewall | AWS | Verified | ✅ Available |
-| [azure-aks-multicluster](blueprints/azure-aks-multicluster/) | Multi-cluster AKS with Aviatrix transit and DCF (Cilium overlay, AppGW + NGINX two-tier ingress) | Azure | Community | ✅ Available |
+| [azure-aks-multicluster](blueprints/azure-aks-multicluster/) | Multi-cluster AKS with Aviatrix transit and DCF (Cilium overlay, AppGW + NGINX two-tier ingress) | Azure | Verified | ✅ Available |
 | [prevent-lateral-movement-vm-tags](blueprints/prevent-lateral-movement-vm-tags/) | Zero Trust segmentation using DCF and VM tags to prevent lateral movement | AWS | Community | ✅ Available |
 | [zero-trust-segmentation](blueprints/zero-trust-segmentation/) | Zero Trust workload segmentation with DCF SmartGroups | AWS | Community | ✅ Available |
 | [k8s-cluster-aas](blueprints/k8s-cluster-aas/) | Pattern A — dedicated cluster per team (VPC-level isolation) | AWS, Azure, GCP | — | 🚧 Work in progress |
