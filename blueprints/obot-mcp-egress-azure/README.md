@@ -4,7 +4,7 @@ Deploy [Obot](https://obot.ai) onto a new AKS cluster with network-layer zero-tr
 
 ## Architecture
 
-![Architecture Diagram](architecture.png)
+![Architecture Diagram](architecture.svg)
 
 Traffic flow:
 
@@ -33,6 +33,7 @@ Azure IP masquerade is disabled for all pod traffic so the spoke gateway sees or
 - [Terraform](../../docs/prerequisites/terraform.md) (v1.5+)
 - [Azure CLI](../../docs/prerequisites/azure-cli.md), authenticated (`az login`)
 - [kubectl](../../docs/prerequisites/kubectl.md), configured for your cluster
+- **Python 3** — required by `local-exec` provisioners for JSON parsing (`curl | python3 -c`)
 
 ### Required Access
 
@@ -149,6 +150,7 @@ kubectl port-forward -n obot-system svc/obot-obot 8080:80
 | `obot_mcp_namespace` | Kubernetes namespace for MCP server pods | `string` | `"obot-mcp"` | no |
 | `obot_system_pod_cidrs` | /32 CIDRs for obot-system pods (two-step deploy) | `list(string)` | `[]` | no |
 | `name_prefix` | Prefix for all created resource names | `string` | `"obot-mcp"` | no |
+| `copilot_syslog_index` | Remote syslog index slot on the Controller (0-9); must be free | `number` | `9` | no |
 
 ## Outputs
 

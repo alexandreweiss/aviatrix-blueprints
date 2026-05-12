@@ -192,6 +192,16 @@ variable "npc_chart_version" {
 }
 
 # -----------------------------------------------------------------------------
+# Observability
+# -----------------------------------------------------------------------------
+
+variable "copilot_syslog_index" {
+  description = "Remote syslog index slot on the Aviatrix Controller (0-9). Must be free; change if another blueprint or config already uses this slot."
+  type        = number
+  default     = 9
+}
+
+# -----------------------------------------------------------------------------
 # Naming
 # -----------------------------------------------------------------------------
 

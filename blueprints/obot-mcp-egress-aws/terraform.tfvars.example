@@ -21,7 +21,7 @@ controller_ip       = "20.1.2.3"      # REQUIRED
 controller_username = "admin"
 controller_password = "CHANGE_ME"     # REQUIRED; prefer TF_VAR_controller_password env var
 aws_access_account  = "aws-account"   # REQUIRED: Aviatrix access account name for AWS
-copilot_ip          = "10.200.0.5"    # REQUIRED
+copilot_private_ip  = "10.200.0.5"    # REQUIRED
 copilot_public_ip   = "20.1.2.4"      # REQUIRED
 
 # Obot

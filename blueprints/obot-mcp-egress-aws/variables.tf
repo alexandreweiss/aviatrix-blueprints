@@ -77,7 +77,7 @@ variable "aws_access_account" {
   type        = string
 }
 
-variable "copilot_ip" {
+variable "copilot_private_ip" {
   description = "CoPilot private IP — used for syslog stream configuration"
   type        = string
 }
@@ -156,6 +156,16 @@ variable "obot_mcp_pod_cidrs" {
   EOT
   type        = list(string)
   default     = []
+}
+
+# -----------------------------------------------------------------------------
+# Observability
+# -----------------------------------------------------------------------------
+
+variable "copilot_syslog_index" {
+  description = "Remote syslog index slot on the Aviatrix Controller (0-9). Must be free; change if another blueprint or config already uses this slot."
+  type        = number
+  default     = 9
 }
 
 # -----------------------------------------------------------------------------

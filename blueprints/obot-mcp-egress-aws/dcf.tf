@@ -215,7 +215,7 @@ resource "aviatrix_distributed_firewalling_default_action_rule" "deny_all" {
 # CoPilot association via direct API call (provider resource lacks public_ip field).
 resource "null_resource" "copilot_association" {
   triggers = {
-    private_ip = var.copilot_ip
+    private_ip = var.copilot_private_ip
     public_ip  = var.copilot_public_ip
   }
 
@@ -234,17 +234,16 @@ resource "null_resource" "copilot_association" {
       CONTROLLER = var.controller_ip
       USERNAME   = var.controller_username
       PASSWORD   = var.controller_password
-      PRIVATE_IP = var.copilot_ip
+      PRIVATE_IP = var.copilot_private_ip
       PUBLIC_IP  = var.copilot_public_ip
     }
   }
 }
 
-# Index 9 must be free on the controller. Change if already in use.
 resource "aviatrix_remote_syslog" "copilot" {
-  index    = 9
+  index    = var.copilot_syslog_index
   name     = "${local.name}-copilot"
-  server   = var.copilot_ip
+  server   = var.copilot_private_ip
   port     = 5000
   protocol = "UDP"
 }

@@ -4,6 +4,8 @@ Deploy [Obot](https://obot.ai) onto a new EKS cluster with network-layer zero-tr
 
 ## Architecture
 
+![Architecture Diagram](architecture.svg)
+
 Architecture diagram coming soon.
 
 Traffic flow:
@@ -34,6 +36,7 @@ The vpc-cni addon is configured with `EXTERNALSNAT=true`, which disables per-nod
 - [Terraform](../../docs/prerequisites/terraform.md) (v1.5+)
 - [AWS CLI](../../docs/prerequisites/aws-cli.md), authenticated (`aws configure` or equivalent)
 - [kubectl](../../docs/prerequisites/kubectl.md), configured for your cluster (EKS authentication uses the AWS CLI exec plugin)
+- **Python 3** — required by `local-exec` provisioners for JSON parsing (`curl | python3 -c`)
 
 ### Required Access
 
@@ -173,7 +176,7 @@ kubectl port-forward -n obot-system svc/obot-obot 8080:80
 | `controller_username` | Controller admin username | `string` | `"admin"` | no |
 | `controller_password` | Controller admin password | `string` | n/a | yes |
 | `aws_access_account` | AWS access account name onboarded in Controller | `string` | n/a | yes |
-| `copilot_ip` | CoPilot private IP (syslog) | `string` | n/a | yes |
+| `copilot_private_ip` | CoPilot private IP (syslog) | `string` | n/a | yes |
 | `copilot_public_ip` | CoPilot public IP (OTEL/DCF Monitor) | `string` | n/a | yes |
 | `obot_admin_password` | Obot admin password | `string` | n/a | yes |
 | `aws_region` | AWS region for all resources | `string` | `"us-east-1"` | no |
@@ -189,6 +192,7 @@ kubectl port-forward -n obot-system svc/obot-obot 8080:80
 | `obot_system_pod_cidrs` | /32 CIDRs for obot-system pods (two-step deploy) | `list(string)` | `[]` | no |
 | `obot_mcp_pod_cidrs` | /32 CIDRs for obot-mcp pods (three-step deploy; EKS CIDR workaround) | `list(string)` | `[]` | no |
 | `name_prefix` | Prefix for all created resource names | `string` | `"obot-mcp"` | no |
+| `copilot_syslog_index` | Remote syslog index slot on the Controller (0-9); must be free | `number` | `9` | no |
 
 ## Outputs
 

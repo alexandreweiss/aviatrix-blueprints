@@ -277,10 +277,8 @@ resource "null_resource" "copilot_association" {
   }
 }
 
-# Syslog stream to CoPilot (UDP 5000, index 9).
-# Index 9 must be free on the controller. Change if already in use.
 resource "aviatrix_remote_syslog" "copilot" {
-  index    = 9
+  index    = var.copilot_syslog_index
   name     = "${var.name_prefix}-copilot"
   server   = var.copilot_private_ip
   port     = 5000
