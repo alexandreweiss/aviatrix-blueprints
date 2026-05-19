@@ -36,6 +36,11 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Environment variable files
+.env
+.env.*
+.env.blueprint
+
 # Credentials (should never be committed)
 *.pem
 *.key
